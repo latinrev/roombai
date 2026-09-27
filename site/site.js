@@ -1,12 +1,13 @@
 // Roombai landing page: downloads per OS, the live demo sizing, the night sky,
 // the clean/wrecked slider, the spinning whiteboard and the sponsor pyramid.
 
-// Where the downloads live. Tagged builds are published by the release workflow.
-const RELEASES = 'https://github.com/latinrev/roombai/releases';
+// Update the version after a tagged release has published all installers.
+const DOWNLOAD_VERSION = '0.1.0';
+const RELEASE_ASSETS = `https://github.com/latinrev/roombai/releases/download/v${DOWNLOAD_VERSION}`;
 const DOWNLOADS = {
-  windows: { label: 'Download for Windows', href: RELEASES },
-  mac: { label: 'Download for macOS', href: RELEASES },
-  linux: { label: 'Download for Linux', href: RELEASES },
+  windows: { label: 'Download for Windows', href: `${RELEASE_ASSETS}/Roombai-Setup-${DOWNLOAD_VERSION}.exe` },
+  mac: { label: 'Download for macOS', href: `${RELEASE_ASSETS}/Roombai-${DOWNLOAD_VERSION}-mac.dmg` },
+  linux: { label: 'Download for Linux', href: `${RELEASE_ASSETS}/Roombai-${DOWNLOAD_VERSION}-linux-x86_64.AppImage` },
 };
 
 function detectOS() {
