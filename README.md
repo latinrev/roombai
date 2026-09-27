@@ -235,6 +235,21 @@ npm run dist:linux  # Build Linux packages
 
 Build packages on the matching operating system, or use the release workflow. Build output goes into ignored `dist/`. Pushing a version tag such as `v0.1.0` triggers the existing workflow and attaches packages to a GitHub Release.
 
+### Build all three platforms on GitHub
+
+Open [Actions → release](https://github.com/latinrev/roombai/actions/workflows/release.yml), choose **Run workflow**, and select `main`. GitHub builds Windows, macOS, and Linux on separate runners. Download the three artifact archives from the completed run; manual builds are retained for 14 days and do not publish a release.
+
+To publish the current version, push a tag that matches `package.json`:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+For subsequent versions, run `npm version patch` (or `minor` / `major`), then `git push origin main --follow-tags`. The workflow checks the version and publishes one release only after all three platforms build successfully.
+
+Each release contains a Windows x64 installer and portable EXE, a universal macOS DMG for Intel and Apple Silicon, and Linux AppImage and DEB packages. These builds are unsigned; macOS signing/notarization and Windows signing require separate certificate setup.
+
 The landing page can be served by any static HTTP server with `site/` as its root. Run `npm run site` after renderer changes; it updates the copied app files while retaining the demo bridge. Download destinations are configured in `site/site.js`.
 
 ### Developer checks
