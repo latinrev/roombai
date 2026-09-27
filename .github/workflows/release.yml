@@ -44,6 +44,7 @@ jobs:
         run: |
           node -e "const expected = 'v' + require('./package.json').version; if (process.env.GITHUB_REF_NAME !== expected) { console.error('Expected tag ' + expected); process.exit(1); }"
       - run: npm ci
+      - run: node --test test/window-bounds.test.js
       - run: npm run ${{ matrix.script }} -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false' # unsigned builds for now

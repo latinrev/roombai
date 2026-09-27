@@ -254,7 +254,9 @@ The landing page can be served by any static HTTP server with `site/` as its roo
 
 ### Developer checks
 
-The scripts under `test/` drive the live renderer and capture interactions; they are not an automated assertion suite. For example, from PowerShell:
+Run `node --test test/window-bounds.test.js` for automated window-positioning regression checks. These also run before packaging in the release workflow.
+
+The other scripts under `test/` drive the live renderer and capture interactions. For example, from PowerShell:
 
 ```powershell
 $env:ROOM_SHOT = 'shot-menu.png'

@@ -13,7 +13,6 @@ let tray;
 let watcher;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, onTop: true, collapsed: false };
-const COLLAPSED_TOP = 9; // the rolled-up room shows only its roof: rows 9..23 of the art
 const COLLAPSED_H = 12;
 // Where the room lives: snapped to the bottom of a screen (left / center / right),
 // or 'free' once you drag it somewhere yourself. Remembered between runs.
@@ -61,7 +60,11 @@ function cssScale(display = roomDisplay()) {
 // window size on a display; rolled up, the window is just the roof strip
 function sizeOn(display) {
   const s = cssScale(display);
-  return { w: Math.round(ROOM_W * s), h: Math.round((settings.collapsed ? COLLAPSED_H : ROOM_H) * s), offY: settings.collapsed ? Math.round(COLLAPSED_TOP * s) : 0 };
+  const expandedH = Math.round(ROOM_H * s);
+  const h = settings.collapsed ? Math.round(COLLAPSED_H * s) : expandedH;
+  // pos.y always stores the expanded top. Keep the bottom edge fixed when
+  // collapsing, including after dragging or restoring a freely placed room.
+  return { w: Math.round(ROOM_W * s), h, offY: expandedH - h };
 }
 
 function bounds() {
