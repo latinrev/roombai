@@ -9,7 +9,7 @@ const { test } = require('node:test');
 function desktop(scaleFactor = 1) {
   const display = { id: 1, scaleFactor, workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
   const electron = {
-    app: { getPath: () => '/unused', requestSingleInstanceLock: () => true, whenReady: () => ({ then() {} }), on() {} },
+    app: { getVersion: () => '0.1.2', getPath: () => '/unused', requestSingleInstanceLock: () => true, whenReady: () => ({ then() {} }), on() {} },
     screen: { getAllDisplays: () => [display], getPrimaryDisplay: () => display },
   };
   const context = vm.createContext({

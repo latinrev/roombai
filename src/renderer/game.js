@@ -1877,6 +1877,7 @@ function applyConfig(cfg) {
 }
 
 function syncMenu() {
+  $('app-version').textContent = appCfg.version ? `v${appCfg.version}` : '';
   $('opt-ontop').checked = appCfg.onTop;
   $('opt-sound').checked = !appCfg.muted;
   for (const b of document.querySelectorAll('#opt-size button')) b.classList.toggle('on', Number(b.dataset.v) === appCfg.size);

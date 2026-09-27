@@ -84,7 +84,7 @@
     const dpr = window.devicePixelRatio || 1;
     const raw = window.innerWidth / 360;
     const fit = raw >= 1 ? Math.floor(raw * dpr) / dpr : raw; // shrink below 1x on phones
-    return { scale: fit, muted, collapsed, onTop: true, anchor: 'free', size: 3 };
+    return { version: document.querySelector('meta[name="roombai-version"]')?.content, scale: fit, muted, collapsed, onTop: true, anchor: 'free', size: 3 };
   };
 
   window.bridge = {
