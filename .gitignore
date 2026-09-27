@@ -4,6 +4,7 @@ shot*.png
 zoom.png
 gallery.png
 site/downloads/
+site/.output/
 
 # Local credentials and environment overrides
 .env

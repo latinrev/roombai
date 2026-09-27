@@ -1,13 +1,11 @@
 // Roombai landing page: downloads per OS, the live demo sizing, the night sky,
 // the clean/wrecked slider, the spinning whiteboard and the sponsor pyramid.
 
-// Update the version after a tagged release has published all installers.
-const DOWNLOAD_VERSION = '0.1.1';
-const RELEASE_ASSETS = `https://github.com/latinrev/roombai/releases/download/v${DOWNLOAD_VERSION}`;
+// Cloudflare's build resolves these HTML links from the latest published release.
 const DOWNLOADS = {
-  windows: { label: 'Download for Windows', href: `${RELEASE_ASSETS}/Roombai-Setup-${DOWNLOAD_VERSION}.exe` },
-  mac: { label: 'Download for macOS', href: `${RELEASE_ASSETS}/Roombai-${DOWNLOAD_VERSION}-mac.dmg` },
-  linux: { label: 'Download for Linux', href: `${RELEASE_ASSETS}/Roombai-${DOWNLOAD_VERSION}-linux-x86_64.AppImage` },
+  windows: { label: 'Download for Windows', href: document.querySelector('[data-download-asset="windows"]').href },
+  mac: { label: 'Download for macOS', href: document.querySelector('[data-download-asset="mac"]').href },
+  linux: { label: 'Download for Linux', href: document.querySelector('[data-download-asset="linux"]').href },
 };
 
 function detectOS() {

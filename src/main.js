@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
@@ -27,7 +27,7 @@ function loadPos() {
   } catch {}
 }
 function savePos() { fs.writeFile(posFile(), JSON.stringify({ pos, settings }), () => {}); }
-function config() { return { version: app.getVersion(), scale: cssScale(), muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
+function config() { return { version: app.getVersion(), update: updates?.status(), scale: cssScale(), muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
 function sendConfig() { if (win && !win.isDestroyed()) win.webContents.send('config', config()); }
 const lastStatus = new Map();
 
@@ -145,7 +145,6 @@ function trayMenu() {
     { type: 'separator' },
     { label: 'Mute alerts', type: 'checkbox', checked: settings.muted, click: (i) => setOption('muted', i.checked) },
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
-    ...(updates ? [updates.menuItem()] : []),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -160,6 +159,8 @@ function buildTray() {
 
 // every setting goes through here, from the in-game menu and the tray alike
 function setOption(key, value) {
+  if (key === 'update') { if (updates) void updates.install(); return; }
+  if (key === 'check-update') { if (updates) void updates.check(true); return; }
   if (key === 'anchor') {
     if (value === 'free' && pos.x === null) { const b = win.getBounds(); pos.x = b.x; pos.y = b.y - sizeOn(roomDisplay()).offY; }
     pos.anchor = value;
@@ -189,10 +190,10 @@ app.whenReady().then(() => {
   loadPos();
   createWindow();
   updates = require('./updates').createUpdates({
-    app, dialog, shell,
+    app, shell,
     getUpdater: () => require('electron-updater').autoUpdater,
     disabled: Boolean(process.env.ROOM_SHOT) || process.argv.includes('--demo'),
-    onChange: () => { if (tray) tray.setContextMenu(trayMenu()); },
+    onChange: sendConfig,
   });
   buildTray();
   updates.start();

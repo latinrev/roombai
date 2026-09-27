@@ -461,7 +461,7 @@ function signPart(x, y) {
 function updateIgnore(e) {
   const { x, y } = toInternal(e);
   const overTip = e.target instanceof Element && Boolean(e.target.closest('.panel'));
-  const want = !(dragging || overTip || inRoom(x, y) || roombaAt(x, y));
+  const want = !(dragging || overTip || inRoom(x, y) || roofButtonAt(x, y) || roombaAt(x, y));
   if (want !== ignoring) { ignoring = want; window.bridge && window.bridge.setIgnore(want); }
 }
 
@@ -1878,6 +1878,19 @@ function applyConfig(cfg) {
 
 function syncMenu() {
   $('app-version').textContent = appCfg.version ? `v${appCfg.version}` : '';
+  const update = appCfg.update || { state: 'disabled' };
+  const available = ['available', 'downloading', 'ready'].includes(update.state);
+  $('update-notice').hidden = !available && update.state !== 'error';
+  $('update-message').textContent = update.state === 'error' ? 'Update failed' : "There's a new update";
+  $('update-detail').textContent = update.state === 'ready' ? `v${update.version} · Installs and restarts Roombai.`
+    : update.state === 'downloading' ? `Downloading v${update.version}…`
+    : update.state === 'available' ? `v${update.version} · Download and replace this build.`
+    : 'Check your connection and try again.';
+  $('opt-update').textContent = update.state === 'downloading' ? 'Downloading…' : update.state === 'error' ? 'Retry' : update.automatic ? 'Install' : 'Download';
+  $('opt-update').disabled = update.busy || update.state === 'downloading';
+  $('opt-check-update').hidden = update.state === 'disabled' || available || update.state === 'error';
+  $('opt-check-update').disabled = update.busy;
+  $('opt-check-update').textContent = update.state === 'checking' ? 'Checking…' : update.state === 'current' ? 'Up to date' : 'Check for updates';
   $('opt-ontop').checked = appCfg.onTop;
   $('opt-sound').checked = !appCfg.muted;
   for (const b of document.querySelectorAll('#opt-size button')) b.classList.toggle('on', Number(b.dataset.v) === appCfg.size);
@@ -1902,6 +1915,8 @@ function toggleMenu() {
 }
 
 $('opt-ontop').addEventListener('change', (e) => window.bridge.setOption('onTop', e.target.checked));
+$('opt-update').addEventListener('click', () => window.bridge.setOption('update', true));
+$('opt-check-update').addEventListener('click', () => window.bridge.setOption('check-update', true));
 $('opt-sound').addEventListener('change', (e) => window.bridge.setOption('muted', !e.target.checked));
 for (const b of document.querySelectorAll('#opt-size button')) b.addEventListener('click', () => window.bridge.setOption('scale', Number(b.dataset.v)));
 for (const b of document.querySelectorAll('#opt-place button')) b.addEventListener('click', () => window.bridge.setOption('anchor', b.dataset.v));
@@ -1914,6 +1929,10 @@ canvas.addEventListener('mousedown', () => { if (!menuEl.hidden) menuEl.hidden =
 // roof buttons live where the grip dots used to be, on the right end of the roof
 const ROOF_BTNS = { roll: W - 26, menu: W - 15 };
 function roofButtonAt(x, y) {
+  if (['available', 'downloading', 'ready'].includes(appCfg.update?.state)) {
+    const by = appCfg.collapsed ? ROOF_Y - 1 : ROOF_Y - 5;
+    if (x >= ROOF_BTNS.menu + 4 && x < ROOF_BTNS.menu + 11 && y >= by && y < by + 7) return 'menu';
+  }
   if (y < ROOF_Y + 1 || y > ROOF_Y + 9) return null;
   for (const [k, bx] of Object.entries(ROOF_BTNS)) if (x >= bx && x < bx + 9) return k;
   return null;
@@ -1932,6 +1951,14 @@ function drawRoofButtons() {
     } else { // menu: three bars
       for (let i = 0; i < 3; i++) rect(bx + 2, ROOF_Y + 3 + i * 2, 5, 1, c);
     }
+  }
+  if (['available', 'downloading', 'ready'].includes(appCfg.update?.state)) {
+    const bx = ROOF_BTNS.menu + 4;
+    const by = appCfg.collapsed ? ROOF_Y - 1 : ROOF_Y - 5;
+    rect(bx, by, 7, 7, '#2b2233');
+    rect(bx + 1, by + 1, 5, 5, '#e63946');
+    rect(bx + 3, by + 1, 1, 3, '#ffffff');
+    px(bx + 3, by + 5, '#ffffff');
   }
 }
 

@@ -136,4 +136,10 @@ input:focus { background: #fffbe0; }
 .menu-actions { margin-top: 8px; }
 .menu-actions button { flex: 1; }
 #opt-quit { background: #ffb3b3; }
+#update-notice { margin: 6px 0; padding: 8px; border: 2px solid #2b2233; background: #ffe66d; }
+#update-notice[hidden], #opt-check-update[hidden] { display: none; }
+#update-notice .row { justify-content: space-between; gap: 8px; }
+#update-notice strong { font-size: 12px; }
+#update-notice .hint { color: #4a4052; }
+#opt-check-update { margin: 6px 0; font-size: 11px; }
 #tip-snooze { background: #ffe8a3; }

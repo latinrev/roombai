@@ -35,7 +35,7 @@ test('development and demo builds never check or schedule updates', async () => 
     await f.updates.check(true);
     assert.equal(f.scheduled.length, 0);
     assert.deepEqual(f.counts(), { checks: 0, installs: 0, lookups: 0 });
-    assert.equal(f.updates.menuItem().enabled, false);
+    assert.equal(f.updates.status().state, 'disabled');
   }
 });
 
@@ -55,22 +55,35 @@ test('Windows installer downloads automatically but never installs on normal qui
   assert.equal(f.messages.length, 0);
 });
 
-test('Later leaves the update ready; only an explicit restart installs it', async () => {
+test('downloaded updates stay in the menu until Install is clicked', async () => {
   const f = setup();
   await f.updates.check();
   f.updater.emit('update-downloaded', { version: '0.1.2' });
   await new Promise(setImmediate);
   assert.equal(f.counts().installs, 0);
-  assert.match(f.updates.menuItem().label, /Restart to install 0.1.2/);
-  f.responses.push(0);
-  await f.updates.check(true);
+  assert.equal(f.updates.status().state, 'ready');
+  assert.equal(f.messages.length, 0);
+  await f.updates.install();
   assert.equal(f.counts().installs, 1);
 });
 
 test('manual checks report up to date', async () => {
   const f = setup();
   await f.updates.check(true);
-  assert.match(f.messages[0].message, /up to date/);
+  assert.equal(f.updates.status().state, 'current');
+  assert.equal(f.messages.length, 0);
+});
+
+test('Install is inert before a download is ready and repeated clicks cannot install twice', async () => {
+  const f = setup();
+  await f.updates.install();
+  assert.equal(f.counts().installs, 0);
+  await f.updates.check();
+  f.updater.emit('update-downloaded', { version: '0.1.2' });
+  await f.updates.install();
+  await f.updates.install();
+  assert.equal(f.counts().installs, 1);
+  assert.equal(f.messages.length, 0);
 });
 
 test('download failures are quiet in the background and actionable on manual checks', async () => {
@@ -82,8 +95,9 @@ test('download failures are quiet in the background and actionable on manual che
   await f.updates.check();
   assert.equal(f.messages.length, 0);
   await f.updates.check(true);
-  assert.match(f.messages[0].message, /Could not check/);
-  assert.equal(f.updates.menuItem().enabled, true);
+  assert.equal(f.updates.status().state, 'error');
+  assert.equal(f.updates.status().busy, false);
+  assert.equal(f.messages.length, 0);
 });
 
 test('concurrent checks cannot start a second download', async () => {
@@ -94,7 +108,7 @@ test('concurrent checks cannot start a second download', async () => {
   const pending = f.updates.check();
   await f.updates.check();
   assert.equal(calls, 1);
-  assert.equal(f.updates.menuItem().enabled, false);
+  assert.equal(f.updates.status().busy, true);
   finish({ updateInfo: { version: '0.1.1' } });
   await pending;
 });
@@ -104,11 +118,11 @@ for (const options of [{ platform: 'darwin' }, { platform: 'win32', env: { PORTA
     const f = setup(options);
     await f.updates.check();
     await f.updates.check();
-    assert.equal(f.messages.length, 1, 'only notify once per new version');
+    assert.equal(f.messages.length, 0, 'updates never open native dialogs');
+    assert.equal(f.updates.status().state, 'available');
     assert.equal(f.counts().checks, 0);
     assert.equal(f.counts().installs, 0);
-    f.responses.push(0);
-    await f.updates.check(true);
+    await f.updates.install();
     assert.deepEqual(f.opened, ['https://github.com/latinrev/roombai/releases/latest']);
   });
 }

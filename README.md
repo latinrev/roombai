@@ -208,16 +208,16 @@ The event server binds to `127.0.0.1`, not a public network interface. It has no
 
 ## Updates
 
-Starting with **v0.1.1**, packaged builds check GitHub Releases for updates 15 seconds after startup and every six hours. Use **Check for updates** in the system tray menu to check immediately.
+Starting with **v0.1.1**, packaged builds check GitHub Releases for updates 15 seconds after startup and every six hours. Use **Check for updates** in the room menu to check immediately.
 
 | Installed build | Update behavior |
 | --- | --- |
-| Windows installer | Downloads updates in the background, then asks you to restart and install. |
-| Linux AppImage | Downloads updates in the background, then asks you to restart and install. Keep the AppImage in a writable location. |
+| Windows installer | Downloads updates in the background, then shows an alert above the menu icon and an Install button in the menu. |
+| Linux AppImage | Downloads updates in the background, then shows an alert above the menu icon and an Install button in the menu. Keep the AppImage in a writable location. |
 | Windows portable, Linux DEB | Notifies you about new releases and offers a link to download them. |
 | macOS | Notifies you and opens downloads. In-app installation needs Apple code signing, which these unsigned builds do not have. |
 
-Choose **Later** to keep working; Roombai does not install updates on ordinary quit. Use the tray's **Restart to install** item when ready. Updating Roombai does not restart your coding agents. Background connection failures are silent and retried on the next scheduled check.
+Starting with **v0.1.3**, updates use the pixel-art room UI with no native update dialogs. The menu says **There's a new update**; click **Install** when ready to restart. Leave it alone to keep working. Roombai does not install updates on ordinary quit. Updating Roombai does not restart your coding agents. Background connection failures are silent and retried on the next scheduled check.
 
 Existing **v0.1.0 users must install v0.1.1 manually once**, because v0.1.0 has no updater. Source runs and demo mode never check for updates. Update checks contact GitHub; they do not send agent transcripts, task text, or project paths.
 
@@ -265,7 +265,11 @@ For subsequent versions, run `npm version patch` (or `minor` / `major`), then `g
 
 Each release contains a Windows x64 installer and portable EXE, a universal macOS DMG for Intel and Apple Silicon, and Linux AppImage and DEB packages. These builds are unsigned; macOS signing/notarization and Windows signing require separate certificate setup.
 
-The landing page can be served by any static HTTP server with `site/` as its root. Run `npm run site` after renderer changes; it updates the copied app files while retaining the demo bridge. Download destinations are configured in `site/site.js`.
+The landing page can be served by any static HTTP server with `site/` as its root. Run `npm run site` after renderer changes; it updates the copied app files while retaining the demo bridge.
+
+For production, `npm run build:site` creates ignored output in `site/.output/` and resolves all five installer links from the latest published GitHub Release. It rejects drafts, prereleases, and releases missing an installer. There are no version numbers to update in the website source.
+
+The release workflow publishes all installers and update metadata first, then triggers Cloudflare Pages through the `CLOUDFLARE_PAGES_DEPLOY_HOOK` repository secret. Cloudflare runs the site build and serves `.output/`. Website-only edits deploy through Cloudflare's Git integration without running installer builds; app releases refresh the website as the final workflow step.
 
 ### Developer checks
 
