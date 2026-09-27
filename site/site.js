@@ -2,7 +2,7 @@
 // the clean/wrecked slider, the spinning whiteboard and the sponsor pyramid.
 
 // Update the version after a tagged release has published all installers.
-const DOWNLOAD_VERSION = '0.1.0';
+const DOWNLOAD_VERSION = '0.1.1';
 const RELEASE_ASSETS = `https://github.com/latinrev/roombai/releases/download/v${DOWNLOAD_VERSION}`;
 const DOWNLOADS = {
   windows: { label: 'Download for Windows', href: `${RELEASE_ASSETS}/Roombai-Setup-${DOWNLOAD_VERSION}.exe` },
