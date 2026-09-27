@@ -1,6 +1,7 @@
 <div align="center">
   <img src="site/assets/icon.png" alt="Roombai icon" width="64" />
   <h1>Roombai</h1>
+  <p>Made by <a href="https://twitter.com/joeldev_">joeldev_</a></p>
   <p><strong>Your coding agents. A room full of roombas.</strong></p>
   <p>A tiny, playable pixel-art room that lives on your desktop.<br />Watch your agents work, spot the ones that need you, and clean up their mess.</p>
   <p>
