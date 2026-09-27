@@ -1,6 +1,6 @@
 {
   "name": "roombai",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A messy little room at the bottom of your screen where roombas are your coding agents.",
   "main": "src/main.js",
   "scripts": {
@@ -76,6 +76,15 @@
       "artifactName": "Roombai-${version}-linux-${arch}.${ext}",
       "maintainer": "latinrev"
     },
-    "publish": null
+    "publish": {
+      "provider": "github",
+      "owner": "latinrev",
+      "repo": "roombai",
+      "releaseType": "release"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "semver": "7.8.5"
   }
 }

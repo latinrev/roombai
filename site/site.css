@@ -122,6 +122,7 @@ p { margin: 0; text-wrap: pretty; }
 
 .demo-dock { position: relative; justify-self: end; align-self: end; padding: 0 clamp(8px, 2vw, 24px); width: 100%; display: grid; justify-items: end; }
 .demo { display: block; border: 0; background: transparent; width: 100%; max-width: 1080px; height: 312px; }
+.demo-drag-cover { position: fixed; inset: 0; z-index: 1000; cursor: move; }
 .hint {
   position: absolute; right: clamp(24px, 22%, 280px); top: -56px;
   font-family: var(--display); font-size: 1.15rem; color: #fff; text-shadow: 0 2px 0 var(--ink);

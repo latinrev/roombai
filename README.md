@@ -206,6 +206,21 @@ Transcript processing happens locally. Roombai reads session information includi
 
 The event server binds to `127.0.0.1`, not a public network interface. It has no authentication, and its snapshot includes agent details, so keep it local. GitHub boards make network requests through your authenticated GitHub CLI; opening external links hands them to your system browser or supported app.
 
+## Updates
+
+Starting with **v0.1.1**, packaged builds check GitHub Releases for updates 15 seconds after startup and every six hours. Use **Check for updates** in the system tray menu to check immediately.
+
+| Installed build | Update behavior |
+| --- | --- |
+| Windows installer | Downloads updates in the background, then asks you to restart and install. |
+| Linux AppImage | Downloads updates in the background, then asks you to restart and install. Keep the AppImage in a writable location. |
+| Windows portable, Linux DEB | Notifies you about new releases and offers a link to download them. |
+| macOS | Notifies you and opens downloads. In-app installation needs Apple code signing, which these unsigned builds do not have. |
+
+Choose **Later** to keep working; Roombai does not install updates on ordinary quit. Use the tray's **Restart to install** item when ready. Updating Roombai does not restart your coding agents. Background connection failures are silent and retried on the next scheduled check.
+
+Existing **v0.1.0 users must install v0.1.1 manually once**, because v0.1.0 has no updater. Source runs and demo mode never check for updates. Update checks contact GitHub; they do not send agent transcripts, task text, or project paths.
+
 ## Development
 
 The app uses Electron with a plain JavaScript canvas renderer. There is no frontend framework or renderer compilation step.
@@ -254,7 +269,7 @@ The landing page can be served by any static HTTP server with `site/` as its roo
 
 ### Developer checks
 
-Run `node --test test/window-bounds.test.js` for automated window-positioning regression checks. These also run before packaging in the release workflow.
+Run `node --test test/*.test.js` for automated window-positioning and updater regression checks. These also run before packaging in the release workflow.
 
 The other scripts under `test/` drive the live renderer and capture interactions. For example, from PowerShell:
 

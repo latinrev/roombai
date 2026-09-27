@@ -72,8 +72,13 @@
 
   let muted = true;
   let collapsed = false;
+  const tellParent = (data) => { if (window.parent !== window) window.parent.postMessage(data, window.location.origin); };
   window.addEventListener('message', (e) => {
+    if (e.source !== window.parent || e.origin !== window.location.origin) return;
     if (e.data && e.data.roombaSound !== undefined) { muted = !e.data.roombaSound; listeners.config && listeners.config(cfg()); }
+    if (e.data && e.data.roombaRelease) {
+      window.dispatchEvent(new MouseEvent('mouseup', e.data.roombaRelease));
+    }
   });
   const cfg = () => {
     const dpr = window.devicePixelRatio || 1;
@@ -86,10 +91,13 @@
     onAgents(fn) { listeners.agents = fn; setTimeout(emit, 30); setInterval(tick, 1200); },
     onConfig(fn) { listeners.config = fn; const go = () => fn(cfg()); window.addEventListener('resize', go); setTimeout(go, 0); },
     onFocusAgent() {},
-    setIgnore() {}, dragStart() {}, dragMove() {}, dragEnd() {},
+    setIgnore() {},
+    dragStart(screenX, screenY) { tellParent({ roombaDrag: 'start', screenX, screenY }); },
+    dragMove(dx, dy) { tellParent({ roombaDrag: 'move', dx, dy }); },
+    dragEnd() { tellParent({ roombaDrag: 'end' }); },
     setOption(key, value) {
       if (key === 'muted') muted = Boolean(value);
-      if (key === 'collapsed') collapsed = Boolean(value);
+      if (key === 'collapsed') { collapsed = Boolean(value); tellParent({ roombaCollapsed: collapsed }); }
       if (listeners.config) listeners.config(cfg());
     },
     ack(id) { const a = agents.find((k) => k.id === id); if (a) { a.status = 'idle'; a.detail = DETAIL.idle; emit(); } },

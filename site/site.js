@@ -31,6 +31,27 @@ if (os) {
 
 // ---------- live demo: size the iframe to whole art pixels ----------
 const demo = document.querySelector('.demo');
+const dock = demo.parentElement;
+let demoCollapsed = false;
+let demoOffset = { x: 0, y: 0 };
+let demoDrag = null;
+let dragCover;
+const tellDemo = (data) => demo.contentWindow.postMessage(data, window.location.origin);
+
+function placeDemo(x = demoOffset.x, y = demoOffset.y) {
+  // Keep the room inside the pretend desktop, above its taskbar.
+  demo.style.transform = 'none';
+  const rect = demo.getBoundingClientRect();
+  const screen = document.querySelector('.screen').getBoundingClientRect();
+  const bottom = document.querySelector('.taskbar').getBoundingClientRect().top;
+  const inset = document.querySelector('.screen').clientLeft;
+  demoOffset = {
+    x: Math.max(screen.left + inset - rect.left, Math.min(screen.right - inset - rect.right, x)),
+    y: Math.max(screen.top + inset - rect.top, Math.min(bottom - rect.bottom, y)),
+  };
+  demo.style.transform = `translate(${demoOffset.x}px, ${demoOffset.y}px)`;
+}
+
 function fitDemo() {
   const screenEl = document.querySelector('.screen');
   const pad = parseFloat(getComputedStyle(demo.parentElement).paddingLeft) * 2;
@@ -40,17 +61,52 @@ function fitDemo() {
   if (scale >= 1) scale = Math.floor(scale * dpr) / dpr;
   scale = Math.min(scale, 3);
   demo.style.width = Math.round(360 * scale) + 'px';
-  demo.style.height = Math.round(104 * scale) + 'px';
+  dock.style.height = Math.round(104 * scale) + 'px';
+  demo.style.position = 'absolute';
+  demo.style.right = pad / 2 + 'px';
+  demo.style.bottom = '0';
+  demo.style.height = Math.round((demoCollapsed ? 12 : 104) * scale) + 'px';
+  placeDemo();
 }
 fitDemo();
 window.addEventListener('resize', fitDemo);
+
+function finishDemoDrag(event) {
+  const rect = demo.getBoundingClientRect();
+  tellDemo({ roombaRelease: { clientX: event ? event.clientX - rect.left : 0,
+    clientY: event ? event.clientY - rect.top : 0, screenX: event?.screenX || 0, screenY: event?.screenY || 0 } });
+  demoDrag = null;
+  dragCover?.remove();
+  dragCover = null;
+}
+window.addEventListener('message', (event) => {
+  if (event.source !== demo.contentWindow || event.origin !== window.location.origin) return;
+  const data = event.data || {};
+  if (typeof data.roombaCollapsed === 'boolean') { demoCollapsed = data.roombaCollapsed; fitDemo(); }
+  if (data.roombaDrag === 'start' && Number.isFinite(data.screenX) && Number.isFinite(data.screenY)) {
+    demoDrag = { ...demoOffset, screenX: data.screenX, screenY: data.screenY };
+    dragCover?.remove();
+    dragCover = document.createElement('div');
+    dragCover.className = 'demo-drag-cover';
+    document.body.appendChild(dragCover);
+  }
+  if (data.roombaDrag === 'move' && demoDrag && Number.isFinite(data.dx) && Number.isFinite(data.dy)) {
+    placeDemo(demoDrag.x + data.dx, demoDrag.y + data.dy);
+  }
+  if (data.roombaDrag === 'end') { demoDrag = null; dragCover?.remove(); dragCover = null; }
+});
+window.addEventListener('mousemove', (event) => {
+  if (demoDrag) placeDemo(demoDrag.x + event.screenX - demoDrag.screenX, demoDrag.y + event.screenY - demoDrag.screenY);
+});
+window.addEventListener('mouseup', finishDemoDrag);
+window.addEventListener('blur', () => { if (demoDrag) finishDemoDrag(); });
 
 const soundBtn = document.querySelector('[data-sound]');
 soundBtn.addEventListener('click', () => {
   const on = soundBtn.getAttribute('aria-pressed') !== 'true';
   soundBtn.setAttribute('aria-pressed', String(on));
   soundBtn.textContent = on ? 'Sound: on' : 'Sound: off';
-  demo.contentWindow.postMessage({ roombaSound: on }, '*');
+  tellDemo({ roombaSound: on });
 });
 
 // taskbar clock

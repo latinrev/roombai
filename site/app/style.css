@@ -126,7 +126,7 @@ input:focus { background: #fffbe0; }
 #tcard-open { background: #d8f3dc; white-space: nowrap; }
 #tcard-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-#menu { width: 290px; }
+#menu { width: 290px; max-width: calc(100vw - 8px); max-height: calc(100vh - 8px); box-sizing: border-box; overflow: auto; }
 .opt { display: flex; gap: 6px; align-items: center; margin: 3px 0; cursor: pointer; }
 .opt input { flex: none; width: 13px; height: 13px; accent-color: #2b2233; margin: 0; }
 .opt-row { display: flex; justify-content: space-between; align-items: center; margin: 5px 0; gap: 6px; }

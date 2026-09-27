@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
@@ -11,6 +11,7 @@ const ROOM_H = 104;
 let win;
 let tray;
 let watcher;
+let updates;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, onTop: true, collapsed: false };
 const COLLAPSED_H = 12;
@@ -144,6 +145,7 @@ function trayMenu() {
     { type: 'separator' },
     { label: 'Mute alerts', type: 'checkbox', checked: settings.muted, click: (i) => setOption('muted', i.checked) },
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
+    ...(updates ? [updates.menuItem()] : []),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -186,7 +188,14 @@ app.whenReady().then(() => {
   migrateOldData();
   loadPos();
   createWindow();
+  updates = require('./updates').createUpdates({
+    app, dialog, shell,
+    getUpdater: () => require('electron-updater').autoUpdater,
+    disabled: Boolean(process.env.ROOM_SHOT) || process.argv.includes('--demo'),
+    onChange: () => { if (tray) tray.setContextMenu(trayMenu()); },
+  });
   buildTray();
+  updates.start();
   watcher = new Watcher({ demo: process.argv.includes('--demo') });
   watcher.on('agents', onAgents);
   watcher.start();
@@ -268,4 +277,4 @@ function jumpTo(a) {
 }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => watcher && watcher.stop());
+app.on('before-quit', () => { if (updates) updates.dispose(); if (watcher) watcher.stop(); });

@@ -522,7 +522,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (rb === 'roll') { window.bridge.setOption('collapsed', !appCfg.collapsed); return; }
   if (sp === 'prev' || sp === 'next') { cycleRoom(sp === 'prev' ? -1 : 1); return; }
   if (sp === 'name') { toggleRoomList(); return; }
-  if (onRoof(p.x, p.y)) { dragging = { kind: 'window', sx: e.screenX, sy: e.screenY }; window.bridge.dragStart(); return; }
+  if (onRoof(p.x, p.y)) { dragging = { kind: 'window', sx: e.screenX, sy: e.screenY }; window.bridge.dragStart(e.screenX, e.screenY); return; }
   if (onCrank(p.x, p.y) || onFaceTitle(p.x, p.y)) { spinBoard(1); return; }
   if (onPlus(p.x, p.y)) { if (todoPopEl.hidden) openTodoPop(); else closeTodoPop(); Sfx.squeak(); return; }
   const n = spin ? null : noteAt(p.x, p.y);
@@ -1079,12 +1079,12 @@ function skyColors() {
 
 function signGeom() {
   const label = signLabel();
-  const w = pixelTextWidth(label) + 8;
+  const w = Math.max(pixelTextWidth(label), ...roomList.map((entry) => pixelTextWidth(signLabel(entry.name)))) + 8;
   const x = Math.round(W / 2 - w / 2);
   return { label, x, w, lx: x - 9, rx: x + w + 2 };
 }
-function signLabel() {
-  const n = (room ? room.name : 'ROOMBAI').toUpperCase();
+function signLabel(name = room ? room.name : 'ROOMBAI') {
+  const n = name.toUpperCase();
   return n.length > 22 ? n.slice(0, 21) + '.' : n;
 }
 
@@ -1103,7 +1103,7 @@ function drawRoof() {
   const hot = hoverSign === 'name' || !roomsEl.hidden;
   rect(g.x, ROOF_Y + 1, g.w, 8, hot ? '#3d2f4a' : '#2b2233');
   if (room && room.key === GARAGE) { rect(g.x + 2, ROOF_Y + 3, 2, 3, '#adb5bd'); }
-  pixelText(ctx, g.label, g.x + 4, ROOF_Y + 2, '#ffd166');
+  pixelText(ctx, g.label, g.x + Math.round((g.w - pixelTextWidth(g.label)) / 2), ROOF_Y + 2, '#ffd166');
   for (const [side, gx] of [['prev', g.lx], ['next', g.rx]]) {
     const blink = alert && Math.sin(time * 8) > 0;
     rect(gx, ROOF_Y + 1, 7, 8, hoverSign === side ? '#3d2f4a' : '#2b2233');
@@ -1882,6 +1882,12 @@ function syncMenu() {
   for (const b of document.querySelectorAll('#opt-size button')) b.classList.toggle('on', Number(b.dataset.v) === appCfg.size);
   for (const b of document.querySelectorAll('#opt-place button')) b.classList.toggle('on', b.dataset.v === appCfg.anchor);
   $('opt-roll').textContent = appCfg.collapsed ? 'Unroll' : 'Roll up';
+  if (!menuEl.hidden) positionMenu();
+}
+
+function positionMenu() {
+  menuEl.style.left = Math.max(4, Math.min(W * scale - menuEl.offsetWidth - 8, window.innerWidth - menuEl.offsetWidth - 4)) + 'px';
+  menuEl.style.top = Math.max(4, Math.min((ROOF_Y + 10) * scale, window.innerHeight - menuEl.offsetHeight - 4)) + 'px';
 }
 
 function toggleMenu() {
@@ -1890,8 +1896,7 @@ function toggleMenu() {
   hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList();
   syncMenu();
   menuEl.hidden = false;
-  menuEl.style.left = clamp(W * scale - menuEl.offsetWidth - 8, 4, W * scale) + 'px';
-  menuEl.style.top = (ROOF_Y + 10) * scale + 'px';
+  positionMenu();
   Sfx.squeak();
 }
 
