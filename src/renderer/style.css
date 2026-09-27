@@ -1,0 +1,139 @@
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+
+#room {
+  position: absolute;
+  left: 0;
+  top: 0;
+  image-rendering: pixelated;
+}
+
+#tip, .panel {
+  position: absolute;
+  z-index: 2;
+  width: 250px;
+  padding: 8px 10px;
+  background: #fffaf0;
+  color: #2b2233;
+  border: 3px solid #2b2233;
+  box-shadow: 4px 4px 0 rgba(43, 34, 51, 0.35);
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: auto;
+}
+.panel[hidden] { display: none; }
+
+.tip-head { display: flex; gap: 6px; align-items: center; color: #6b5f73; }
+#tip-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#tip-title { margin: 4px 0 2px; font-size: 13px; font-weight: 700; }
+#tip-detail {
+  color: #4a4052;
+  max-height: 44px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+#tip-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; color: #6b5f73; }
+.btns { display: flex; gap: 4px; }
+
+.chip {
+  padding: 0 5px;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.chip.working { background: #3a86ff; }
+.chip.waiting { background: #e09f1f; }
+.chip.stuck { background: #e63946; }
+.chip.done { background: #2a9d4b; }
+.chip.idle { background: #8d8497; }
+
+button {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 6px;
+  background: #ffd166;
+  color: #2b2233;
+  border: 2px solid #2b2233;
+  box-shadow: 2px 2px 0 #2b2233;
+  cursor: pointer;
+}
+button:active { transform: translate(2px, 2px); box-shadow: none; }
+button[hidden] { display: none; }
+#tip-hide { background: #e9e1f0; }
+#tip-jump { background: #bde0fe; }
+
+.row { display: flex; gap: 4px; align-items: center; }
+.hint { color: #8d8497; font-size: 10px; margin-top: 3px; }
+input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 5px;
+  color: #2b2233;
+  background: #fff;
+  border: 2px solid #2b2233;
+  outline: none;
+}
+input:focus { background: #fffbe0; }
+#tip { width: 270px; }
+#todo-pop { width: 260px; }
+#tcard-text { margin: 4px 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+#tcard-foot { justify-content: space-between; }
+#tcard-foot .hint { margin: 0; }
+.chip.todo { background: #7b6cf6; }
+
+.pop-title { font-weight: 700; margin-bottom: 4px; }
+#rooms { width: 300px; }
+#rooms-list { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow-y: auto; }
+.room-row {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 6px;
+  align-items: center;
+  text-align: left;
+  background: #fff;
+  box-shadow: 2px 2px 0 #2b2233;
+  padding: 3px 6px;
+}
+.room-row.current { background: #ffd166; }
+.room-row:hover { background: #fff4c2; }
+.room-row.current:hover { background: #ffd166; }
+.room-icon { grid-row: 1 / 3; font-size: 13px; }
+.room-name { font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.room-sub { grid-column: 2; color: #6b5f73; font-size: 10px; }
+.room-dots { grid-column: 3; grid-row: 1 / 3; display: flex; gap: 2px; align-items: center; }
+.dot { width: 6px; height: 6px; display: inline-block; border: 1px solid #2b2233; }
+.dot.working { background: #3a86ff; }
+.dot.waiting { background: #e09f1f; }
+.dot.stuck { background: #e63946; }
+.dot.done { background: #2a9d4b; }
+.dot.idle { background: #c9c3d1; }
+.room-alert { color: #fff; background: #e63946; padding: 0 3px; margin-left: 2px; font-size: 10px; }
+.chip.issue { background: #e63946; }
+.chip.pr { background: #2d6a4f; }
+#tcard-open { background: #d8f3dc; white-space: nowrap; }
+#tcard-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#menu { width: 290px; }
+.opt { display: flex; gap: 6px; align-items: center; margin: 3px 0; cursor: pointer; }
+.opt input { flex: none; width: 13px; height: 13px; accent-color: #2b2233; margin: 0; }
+.opt-row { display: flex; justify-content: space-between; align-items: center; margin: 5px 0; gap: 6px; }
+.seg { display: inline-flex; }
+.seg button { box-shadow: none; margin-left: -2px; background: #fff; font-size: 10px; padding: 1px 5px; }
+.seg button.on { background: #ffd166; }
+.menu-actions { margin-top: 8px; }
+.menu-actions button { flex: 1; }
+#opt-quit { background: #ffb3b3; }
+#tip-snooze { background: #ffe8a3; }

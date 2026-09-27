@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Roombai: your AI coding agents, as roombas</title>
+<meta name="description" content="A free pixel-art room that sits on your desktop. Every Codex, Claude Code and t3code agent is a roomba. More work, more mess. Windows, macOS and Linux." />
+<link rel="canonical" href="https://roombai.com/" />
+<meta property="og:title" content="Roombai: your AI coding agents, as roombas" />
+<meta property="og:description" content="A free pixel-art room on your desktop where every coding agent is a roomba. More work, more mess." />
+<meta property="og:url" content="https://roombai.com/" />
+<meta property="og:image" content="https://roombai.com/assets/garage.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="assets/icon.png" type="image/png" />
+<link rel="preload" href="fonts/pixelify.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="site.css" />
+</head>
+<body>
+
+<header class="nav">
+  <a class="wordmark" href="#top" aria-label="Roombai home">
+    <img src="assets/icon.png" alt="" width="24" height="24" />
+    <span>Roombai</span>
+  </a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#sponsors">Sponsors</a>
+  </nav>
+  <a class="btn btn-small" data-download href="#download">Download</a>
+</header>
+
+<aside class="rail rail-left" aria-label="Sponsors"><div class="pyramid" data-pyramid data-side="left"></div><a class="rail-cta" href="mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square">Your company here</a></aside>
+<aside class="rail rail-right" aria-label="More sponsors"><div class="pyramid" data-pyramid data-side="right"></div><a class="rail-cta" href="mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square">Claim a square</a></aside>
+
+<main id="top">
+  <!-- ============ hero: the live room on a pixel desktop ============ -->
+  <section class="hero" aria-labelledby="hero-title">
+    <canvas class="sky" aria-hidden="true"></canvas>
+    <div class="hero-copy">
+      <h1 id="hero-title">Your AI agents are<br /><span class="hl">roombas</span> now.</h1>
+      <p class="lede">A tiny pixel room that lives on your desktop. Every Codex, Claude Code and t3code agent you run is a roomba in it. More work, more mess. When one is stuck, needs you or is done, the room lets you know.</p>
+      <div class="cta">
+        <a class="btn btn-big" data-download href="#download"><span data-download-label>Download free</span></a>
+        <p class="cta-note">Free · <span data-os-list>Windows · macOS · Linux</span> · nothing to set up</p>
+      </div>
+    </div>
+
+    <div class="monitor" aria-label="Live demo of Roombai">
+      <div class="screen">
+        <div class="desk-icons" aria-hidden="true">
+          <span class="desk-icon"><i class="ico ico-term"></i>agents.log</span>
+          <span class="desk-icon"><i class="ico ico-folder"></i>webshop</span>
+          <span class="desk-icon"><i class="ico ico-folder"></i>api-gateway</span>
+        </div>
+        <div class="demo-dock">
+          <p class="hint" aria-hidden="true">psst… throw one at the ceiling
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 4h2v2h2v2h2v2h2v2h2v2h2v2h2v2h-2v-2h-2v-2h-2v-2H9v-2H7V8H5V6H3z" fill="currentColor"/><path d="M15 20h6v-6h-2v4h-4z" fill="currentColor"/></svg>
+          </p>
+          <iframe class="demo" src="app/index.html" title="Roombai running live with pretend agents" loading="eager"></iframe>
+        </div>
+        <div class="taskbar" aria-hidden="true">
+          <span class="start"><i class="ico ico-start"></i></span>
+          <span class="task">terminal — codex</span>
+          <span class="task">terminal — claude</span>
+          <span class="tray"><img src="assets/icon.png" alt="" width="16" height="16" /><span data-clock>9:41</span></span>
+        </div>
+      </div>
+      <div class="monitor-foot" aria-hidden="true"><span class="neck"></span><span class="base"></span></div>
+      <div class="demo-controls">
+        <button type="button" class="chip-btn" data-sound aria-pressed="false">Sound: off</button>
+        <span class="demo-note">Live demo with pretend agents. Drag the roombas, junk and notes around.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ how: work makes mess ============ -->
+  <section class="how" id="how" aria-labelledby="how-title">
+    <div class="how-copy">
+      <h2 id="how-title">More work, more mess.</h2>
+      <p>Every message you send your agent is a delivery dropped into the room. Pizza boxes pile up, the couch gets grimy, the fridge grows something. The roomba whose agent is working vacuums as it goes. Drag the slider to watch a day go by.</p>
+      <ul class="legend">
+        <li><i class="dot working"></i><b>Working</b> vacuums the junk</li>
+        <li><i class="dot waiting"></i><b>Needs you</b> waiting for your approval</li>
+        <li><i class="dot stuck"></i><b>Stuck</b> spins its wheels in a corner</li>
+        <li><i class="dot done"></i><b>Done</b> confetti, then naps at the dock</li>
+      </ul>
+    </div>
+    <figure class="compare" style="--pos: 50%">
+      <img src="assets/wrecked.png" alt="The same room after a busy day: junk everywhere, wrecked furniture" width="360" height="104" />
+      <img class="compare-top" src="assets/clean.png" alt="A tidy room in the morning" width="360" height="104" />
+      <span class="compare-line" aria-hidden="true"></span>
+      <input class="compare-range" type="range" min="0" max="100" value="50" aria-label="Morning to evening" />
+      <figcaption><span>9:00 am</span><span>6:00 pm</span></figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ features ============ -->
+  <section class="features" id="features" aria-labelledby="features-title">
+    <h2 id="features-title" class="center">Everything your agents do, at a glance.</h2>
+
+    <article class="feature">
+      <div class="feature-art rooms-deck" tabindex="0" aria-label="Four generated project rooms">
+        <img src="assets/room-1.png" alt="The webshop room: a living room with a couch and a TV" width="360" height="104" />
+        <img src="assets/room-2.png" alt="The api-gateway room: an arcade cabinet and a fridge" width="360" height="104" />
+        <img src="assets/room-4.png" alt="The mobile-app room: checkered floor and an armchair" width="360" height="104" />
+      </div>
+      <div class="feature-copy">
+        <h3>A room for every project</h3>
+        <p>Each project gets its own room, generated from its folder, so it always looks the same: wallpaper, floor, rug, windows and furniture picked to feel lived in. Flip between them from the sign on the roof. The arrows blink red when another room needs you.</p>
+      </div>
+    </article>
+
+    <article class="feature flip">
+      <div class="feature-art">
+        <img src="assets/garage.png" alt="The Garage: every project's roombas together, a car, a workbench and a roll-up door" width="360" height="104" />
+      </div>
+      <div class="feature-copy">
+        <h3>The Garage holds everyone</h3>
+        <p>One room with every agent from every project, and a car they can climb onto. It's the busiest room you'll own.</p>
+      </div>
+    </article>
+
+    <article class="feature">
+      <div class="feature-art board-flip" tabindex="0" role="button" aria-label="Spin the whiteboard">
+        <img data-face src="assets/board-todo.png" alt="Whiteboard, TODO side: agents and your own notes" width="82" height="46" />
+      </div>
+      <div class="feature-copy">
+        <h3>A whiteboard with three sides</h3>
+        <p>Turn the crank. <b>TODO</b> holds your agents and your own sticky notes. <b>ISSUES</b> and <b>PRS</b> come straight from the project's GitHub, with CI lights and review checks. Click the board to spin it.</p>
+      </div>
+    </article>
+
+    <article class="feature flip">
+      <div class="feature-art alert-art">
+        <img src="assets/alert.png" alt="A room with a stuck roomba, a red siren on the roof and a pulsing red frame" width="360" height="104" />
+      </div>
+      <div class="feature-copy">
+        <h3>It nags until you look</h3>
+        <p>When an agent is stuck, waiting for approval, or done, a siren spins on the roof, the frame pulses and the roomba shouts. You get a desktop notification too. Snooze it, or deal with it.</p>
+      </div>
+    </article>
+
+    <article class="feature">
+      <div class="feature-art station-art">
+        <img src="assets/station.png" alt="The recharge station, a pod with a lightning bolt" width="36" height="48" />
+      </div>
+      <div class="feature-copy">
+        <h3>Shoo it to recharge</h3>
+        <p>Done with an agent? Shoo it and it drives into the recharge pod and beams out. When that agent starts working again, it beams right back in.</p>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ zero setup ============ -->
+  <section class="setup" aria-labelledby="setup-title">
+    <h2 id="setup-title">Nothing to set up.</h2>
+    <p>Roombai reads the session logs your agents already write. Install it, open it, and your roombas are there.</p>
+    <ul class="notes">
+      <li class="note n1"><b>Codex CLI</b><span>and VS Code</span></li>
+      <li class="note n2"><b>Codex app</b><span>the desktop app</span></li>
+      <li class="note n3"><b>Claude Code</b><span>CLI and SDK</span></li>
+      <li class="note n4"><b>t3code</b><span>Codex and Claude threads</span></li>
+    </ul>
+    <p class="fine">It only watches. It never sends anything to your agents. Issues and PRs use your existing GitHub CLI login.</p>
+  </section>
+
+  <!-- ============ sponsors pyramid ============ -->
+  <section class="sponsors" id="sponsors" aria-labelledby="sponsors-title">
+    <h2 id="sponsors-title">Roombai is free, thanks to these folks.</h2>
+    <p>See the pyramids on both sides of this page? Every square is up for grabs. The big one on top is the best seat in the house.</p>
+    <div class="pyramid" data-pyramid></div>
+    <a class="btn btn-ghost" href="mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square">Claim a square</a>
+  </section>
+
+  <!-- ============ download ============ -->
+  <section class="download" id="download" aria-labelledby="download-title">
+    <h2 id="download-title">Adopt some roombas.</h2>
+    <p>Free for Windows, macOS and Linux.</p>
+    <div class="os-row">
+      <a class="os" data-os="windows" href="#"><b>Windows</b><span>Installer · .exe</span></a>
+      <a class="os" data-os="mac" href="#"><b>macOS</b><span>Universal · .dmg</span></a>
+      <a class="os" data-os="linux" href="#"><b>Linux</b><span>.AppImage · .deb</span></a>
+    </div>
+    <p class="fine">The builds aren't code-signed yet. Windows may show a SmartScreen prompt ("More info" → "Run anyway"), and on macOS you right-click the app and choose Open the first time.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Roombai · made with too many roombas</span>
+  <span>No pizza boxes were harmed.</span>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Roombai demo</title>
+<link rel="stylesheet" href="demo.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="room"></canvas>
+  <div id="tip" class="panel" hidden>
+    <div class="tip-head"><span id="tip-status" class="chip"></span><span id="tip-meta"></span></div>
+    <div id="tip-title"></div>
+    <div id="tip-detail"></div>
+    <div id="tip-foot"><span id="tip-time"></span>
+      <span class="btns"><button id="tip-jump" type="button">Jump to it ↗</button><button id="tip-ack" type="button">Got it ✓</button><button id="tip-snooze" type="button" hidden>Snooze 10m</button><button id="tip-hide" type="button">Shoo</button></span>
+    </div>
+  </div>
+  <div id="todo-pop" class="panel" hidden>
+    <form id="todo-form" class="row">
+      <input id="todo-input" autocomplete="off" maxlength="200" placeholder="New todo…" />
+      <button type="submit">Pin it</button>
+    </form>
+    <div class="hint">Enter adds another · Esc closes</div>
+  </div>
+
+  <div id="tcard" class="panel" hidden>
+    <div class="tip-head"><span id="tcard-status" class="chip todo">todo</span><span id="tcard-meta"></span></div>
+    <div id="tcard-text"></div>
+    <div id="tcard-foot" class="row">
+      <span class="hint" id="tcard-hint">or drag it into the trash</span>
+      <span class="btns"><button id="tcard-done" type="button">Done ✓</button><button id="tcard-del" type="button">Toss</button><button id="tcard-open" type="button" hidden>Open on GitHub ↗</button></span>
+    </div>
+  </div>
+
+  <div id="menu" class="panel" hidden>
+    <div class="pop-title">Roombai</div>
+    <label class="opt"><input type="checkbox" id="opt-ontop" /> Always on top</label>
+    <label class="opt"><input type="checkbox" id="opt-sound" /> Sounds &amp; notifications</label>
+    <div class="opt-row"><span>Size</span><span class="seg" id="opt-size"><button type="button" data-v="2">S</button><button type="button" data-v="3">M</button><button type="button" data-v="4">L</button></span></div>
+    <div class="opt-row"><span>Place</span><span class="seg" id="opt-place"><button type="button" data-v="free">Anywhere</button><button type="button" data-v="left">◀ bottom</button><button type="button" data-v="center">bottom</button><button type="button" data-v="right">bottom ▶</button></span></div>
+    <div class="row menu-actions"><button type="button" id="opt-roll">Roll up</button><button type="button" id="opt-hide">Hide</button><button type="button" id="opt-quit">Quit</button></div>
+    <div class="hint">Hidden? Click the roomba in your system tray to bring it back.</div>
+  </div>
+
+  <div id="rooms" class="panel" hidden>
+    <div class="pop-title">Rooms</div>
+    <div id="rooms-list"></div>
+    <div class="hint">Every project gets its own room · the Garage has everyone</div>
+  </div>
+
+  <script src="demo-bridge.js"></script>
+  <script src="pixelfont.js"></script>
+  <script src="sfx.js"></script>
+  <script src="furniture.js"></script>
+  <script src="rooms.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

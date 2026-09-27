@@ -1,0 +1,81 @@
+{
+  "name": "roombai",
+  "version": "0.1.0",
+  "description": "A messy little room at the bottom of your screen where roombas are your coding agents.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "demo": "node scripts/start.js --demo",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "site": "node scripts/build-site.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^24.13.3"
+  },
+  "productName": "Roombai",
+  "author": "latinrev",
+  "license": "MIT",
+  "build": {
+    "appId": "com.roombai.app",
+    "productName": "Roombai",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Roombai-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Roombai-Portable-${version}.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "artifactName": "Roombai-${version}-mac.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Development",
+      "artifactName": "Roombai-${version}-linux-${arch}.${ext}",
+      "maintainer": "latinrev"
+    },
+    "publish": null
+  }
+}

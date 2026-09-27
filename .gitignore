@@ -1,0 +1,19 @@
+node_modules/
+dist/
+shot*.png
+zoom.png
+gallery.png
+site/downloads/
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local tooling and operating-system files
+.impeccable/
+.DS_Store
+Thumbs.db
+*.log
