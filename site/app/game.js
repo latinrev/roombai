@@ -1900,9 +1900,13 @@ function syncMenu() {
 }
 
 function positionMenu() {
+  // Reserve the roof controls; scroll the panel instead of moving it over them.
+  const top = (ROOF_Y + 10 - viewTop) * scale;
+  menuEl.style.maxHeight = Math.max(0, window.innerHeight - top - 4) + 'px';
   menuEl.style.left = Math.max(4, Math.min(W * scale - menuEl.offsetWidth - 8, window.innerWidth - menuEl.offsetWidth - 4)) + 'px';
-  menuEl.style.top = Math.max(4, Math.min((ROOF_Y + 10) * scale, window.innerHeight - menuEl.offsetHeight - 4)) + 'px';
+  menuEl.style.top = top + 'px';
 }
+window.addEventListener('resize', () => { if (!menuEl.hidden) positionMenu(); });
 
 function toggleMenu() {
   if (!menuEl.hidden) { menuEl.hidden = true; return; }
@@ -1924,7 +1928,10 @@ $('opt-roll').addEventListener('click', () => { menuEl.hidden = true; window.bri
 $('opt-hide').addEventListener('click', () => { menuEl.hidden = true; window.bridge.setOption('hidden', true); });
 $('opt-quit').addEventListener('click', () => window.bridge.setOption('quit', true));
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') menuEl.hidden = true; });
-canvas.addEventListener('mousedown', () => { if (!menuEl.hidden) menuEl.hidden = true; }, true);
+canvas.addEventListener('mousedown', (e) => {
+  const p = toInternal(e);
+  if (!menuEl.hidden && roofButtonAt(p.x, p.y) !== 'menu') menuEl.hidden = true;
+}, true);
 
 // roof buttons live where the grip dots used to be, on the right end of the roof
 const ROOF_BTNS = { roll: W - 26, menu: W - 15 };
