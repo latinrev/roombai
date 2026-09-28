@@ -1,6 +1,7 @@
 // Resolve downloads at deployment time, after GitHub has published every asset.
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const API = 'https://api.github.com/repos/latinrev/roombai/releases/latest';
 
 function releaseDownloads(release) {
@@ -25,6 +26,14 @@ function releaseDownloads(release) {
   }));
 }
 
+function versionAssetLinks(html, readAsset) {
+  return html.replace(/\b(href|src)="([^"?#]+\.(?:css|js))"/g, (match, attr, url) => {
+    if (/^(?:[a-z]+:)?\/\//i.test(url)) return match;
+    const version = createHash('sha256').update(readAsset(url)).digest('hex').slice(0, 12);
+    return `${attr}="${url}?v=${version}"`;
+  });
+}
+
 async function build() {
   const response = await fetch(API, { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(30000) });
   if (!response.ok) throw new Error(`GitHub release lookup failed: ${response.status}`);
@@ -47,8 +56,23 @@ async function build() {
     }
   }
   fs.writeFileSync(path.join(output, 'index.html'), html);
+  // HTML and its styles/scripts must come from the same build, even in a browser
+  // that cached the previous landing page before new components were introduced.
+  function versionHtml(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) versionHtml(file);
+      else if (entry.name.endsWith('.html')) {
+        const text = fs.readFileSync(file, 'utf8');
+        fs.writeFileSync(file, versionAssetLinks(text, url => fs.readFileSync(
+          url.startsWith('/') ? path.join(output, url.slice(1)) : path.resolve(directory, url)
+        )));
+      }
+    }
+  }
+  versionHtml(output);
   console.log(`Website downloads resolved from published release ${release.tag_name}`);
 }
 
 if (require.main === module) build().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { releaseDownloads };
+module.exports = { releaseDownloads, versionAssetLinks };

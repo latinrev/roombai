@@ -1,6 +1,16 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { releaseDownloads } = require('../scripts/build-downloads');
+const { releaseDownloads, versionAssetLinks } = require('../scripts/build-downloads');
+
+test('changed styles and scripts get fresh asset URLs while external analytics stays unchanged', () => {
+  const html = '<link href="site.css"><script src="community.js"></script><script src="https://example.com/script.js"></script>';
+  const first = versionAssetLinks(html, url => url === 'site.css' ? 'old styles' : 'same script');
+  const next = versionAssetLinks(html, url => url === 'site.css' ? 'new styles' : 'same script');
+  assert.notEqual(first.match(/site.css[^\"]+/)[0], next.match(/site.css[^\"]+/)[0]);
+  assert.equal(first.match(/community.js[^\"]+/)[0], next.match(/community.js[^\"]+/)[0]);
+  assert.ok(next.includes('src="https://example.com/script.js"'));
+  assert.equal(versionAssetLinks(next, () => { throw new Error('already versioned'); }), next);
+});
 
 function release() {
   return { tag_name: 'v2.3.4', draft: false, prerelease: false, assets: [

@@ -35,7 +35,7 @@ async function refresh() {
     }
     for (const el of document.querySelectorAll('[data-community]')) el.textContent = number.format(data[el.dataset.community]);
     document.getElementById('community-since').textContent = new Date(data.since * 1000).toLocaleDateString(undefined, { dateStyle: 'medium' });
-    status.textContent = 'Live · refreshes every 30 seconds';
+    status.textContent = 'The Roombai community · live';
     status.dataset.online = 'true';
   } catch {
     // A failed request isn't a zero, and stale online counts aren't live counts.

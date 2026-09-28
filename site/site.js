@@ -192,15 +192,16 @@ for (const f of faces) { const i = new Image(); i.src = f[0]; }
 for (const pyramid of document.querySelectorAll('[data-pyramid]')) {
   const side = pyramid.dataset.side || 'page';
   for (let row = 1; row <= 4; row++) {
+    const price = [49, 29, 19, 9][row - 1];
     const r = document.createElement('div');
     r.className = 'pyramid-row';
     for (let i = 0; i < row; i++) {
       const a = document.createElement('a');
       a.className = 'slot';
-      a.href = 'mailto:joelecastilloj@gmail.com?subject=Roombai%20sponsor%20square';
-      a.innerHTML = row <= 2 || side === 'page' ? '<i>+</i><span>Your company here</span>' : '<i>+</i>';
-      a.title = 'Your company here';
-      a.setAttribute('aria-label', `Sponsor square (${side}, row ${row}): your company here`);
+      a.href = `mailto:joelecastilloj@gmail.com?subject=${encodeURIComponent(`Roombai sponsor square — ${side}, row ${row}, square ${i + 1} ($${price} USD / 30 days)`)}`;
+      a.innerHTML = `<span class="slot-price">$${price}</span>${row === 1 || side === 'page' ? '<span class="slot-term">30 days</span>' : ''}`;
+      a.title = `Your company here — $${price} USD for 30 days`;
+      a.setAttribute('aria-label', `Sponsor square (${side}, row ${row}, square ${i + 1}): $${price} USD for 30 days. Email to book.`);
       r.append(a);
     }
     pyramid.append(r);
