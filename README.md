@@ -3,7 +3,7 @@
   <h1>Roombai</h1>
   <p>Made by <a href="https://twitter.com/joeldev_">joeldev_</a></p>
   <p><strong>Your coding agents. A room full of roombas.</strong></p>
-  <p>A tiny, playable pixel-art room that lives on your desktop.<br />Watch your agents work, spot the ones that need you, and clean up their mess.</p>
+  <p>A tiny pixel-art room that lives on your desktop.<br />Watch your agents work, spot the ones that need you, and clean up their mess.</p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-ffd166" alt="MIT license" /></a>
     <img src="https://img.shields.io/badge/built_with-Electron-47848f" alt="Built with Electron" />
@@ -21,7 +21,7 @@ Roombai turns your running coding agents into little robot vacuums in an always-
 - **See who needs you.** Working, waiting, stuck, done, and idle agents have distinct behavior, with desktop notifications for important changes.
 - **Start without configuration.** Discover recent local Codex and Claude Code sessions, including supported t3code sessions.
 - **Keep work in view.** A rotating whiteboard holds tasks, GitHub issues, and pull requests.
-- **Play while you wait.** Throw roombas, scrub furniture, pick up laundry, and send tired agents to recharge.
+- **Tidy up while you wait.** Move roombas around, scrub furniture, pick up laundry, and send idle agents to recharge.
 - **Make yourself at home.** Move the room between displays, change its size, mute alerts, or roll it up into its roof.
 
 Roombai watches your agents. It does not submit prompts or run tasks on their behalf.
@@ -43,7 +43,7 @@ Want to explore without running an agent?
 npm run demo
 ```
 
-The demo supplies pretend agents that change state while you play with the room.
+The demo supplies pretend agents that change state while you try the room.
 
 Installer builds belong on the [Releases page](https://github.com/latinrev/roombai/releases). If no release has been published yet, use the source instructions above. Packaging targets are Windows installer/portable EXE, macOS universal DMG, and Linux AppImage/DEB. The release workflow currently builds unsigned packages; cross-platform packaging configuration is not a guarantee that every desktop environment has been tested.
 
@@ -118,7 +118,7 @@ Transcript-based waiting and stuck detection are heuristics: a slow tool can loo
 
 Roll up the room when you want more screen space. Its position and settings are remembered.
 
-## Controls and little distractions
+## Controls
 
 | Action | Result |
 | --- | --- |
@@ -234,7 +234,7 @@ The app uses Electron with a plain JavaScript canvas renderer. There is no front
 | `src/watcher.js` | Transcript discovery, agent states, hooks, and local event server. |
 | `src/github.js` | GitHub CLI integration for issues and pull requests. |
 | `src/renderer/` | Pixel-art room, furniture, interactions, fonts, and sound. |
-| `site/` | Static landing page, screenshots, fonts, and playable browser demo. |
+| `site/` | Static landing page, screenshots, fonts, and live browser demo. |
 | `scripts/` | Electron launcher and browser-demo synchronization. |
 | `test/` | Developer interaction and screenshot scripts. |
 | `.github/workflows/release.yml` | Tagged-release builds for three operating systems. |

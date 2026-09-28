@@ -1,4 +1,4 @@
-// Dev-only: open the in-game menu while something is nagging (run via ROOM_SCRIPT).
+// Dev-only: open the room menu while something is nagging (run via ROOM_SCRIPT).
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(1500);

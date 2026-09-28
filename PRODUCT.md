@@ -16,11 +16,11 @@ Developers who run AI coding agents (Codex CLI, the Codex desktop app, Claude Co
 
 ## Product Purpose
 
-Roombai is a free, always-on-top pixel-art "playable sticker" for your desktop. Every running agent is a roomba in a messy little room. More work makes more mess, and finished work lets the roombas clean up. It alerts you when an agent is stuck, needs you, or finishes. Success is: you stop alt-tabbing to check on agents, and watching them work is fun.
+Roombai is a free, always-on-top pixel-art agent watcher for your desktop. Every running agent is a roomba in a messy little room. More work makes more mess, and finished work lets the roombas clean up. It alerts you when an agent is stuck, needs you, or finishes. Success is: you stop alt-tabbing to check on agents, and checking on them is effortless.
 
 ## Positioning
 
-It's a watcher, not a control center. It reads the session logs your agents already write, so there is nothing to configure. Each project gets its own generated room, and a Garage holds everything. It is deliberately cheeky and playful: you can throw roombas at the ceiling, make them wear socks, and drop them on wrecked furniture so they scrub it clean.
+It's a watcher, not a control center. It reads the session logs your agents already write, so there is nothing to configure. Each project gets its own generated room, and a Garage holds everything. It has personality: you can throw roombas at the ceiling, make them wear socks, and drop them on wrecked furniture so they scrub it clean.
 
 ## Capabilities (confirmed, shipped)
 
