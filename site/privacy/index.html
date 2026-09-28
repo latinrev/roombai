@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · Roombai</title>
+  <meta name="description" content="How Roombai handles website analytics, optional app counts and sponsor information.">
+  <link rel="canonical" href="https://roombai.com/privacy/">
+  <link rel="icon" href="/assets/icon.png"><link rel="stylesheet" href="/site.css"><link rel="stylesheet" href="/legal.css">
+</head>
+<body class="legal-page">
+<header class="legal-nav"><a class="legal-brand" href="/">Roombai</a><nav class="legal-nav-links" aria-label="Policy navigation"><a href="/">Back to the room</a><a href="/privacy/" aria-current="page">Privacy</a><a href="/terms/">Terms &amp; refunds</a></nav></header>
+<main class="legal-document">
+  <h1>Privacy Policy</h1><p class="legal-date">Effective September 27, 2026</p>
+  <p class="legal-summary">Your coding sessions stay on your device. The website collects audience statistics, and the app shares a roomba count only if you turn it on. This policy explains those separate activities.</p>
+  <nav class="legal-toc" aria-label="On this page"><a href="#website">Website analytics</a><a href="#app">Desktop app</a><a href="#retention">Retention</a><a href="#choices">Your choices</a></nav>
+  <section><h2>Who we are</h2><p>Nottifai LLC operates Roombai and roombai.com. For privacy questions or requests, email <a href="mailto:joelecastilloj@gmail.com">joelecastilloj@gmail.com</a>. This policy covers our website, official desktop app and sponsorship service. Independently operated forks and linked websites have their own practices.</p></section>
+  <section id="website"><h2>Website analytics and counters</h2>
+    <p>We use a self-hosted Umami instance on Railway to understand visits, referral sources and campaigns, browser and device characteristics, approximate location, and download-link clicks. Page addresses, referrer information and URL parameters may be included. Please do not put confidential information in page URLs. Umami does not use tracking cookies; network requests still expose an IP address and request metadata to the hosting services.</p>
+    <p>Our separate public community counters use a random browsing-session ID stored in your browser’s local storage, with activity timestamps. It rotates after 30 minutes of inactivity or 24 hours, and helps avoid counting reloads and tabs as new visits. While the page is visible, it sends a heartbeat about every 30 seconds. Download clicks send a random event ID, asset/platform label and timestamp. The database stores hashes of these IDs. Short-lived hashes derived from request IP addresses limit abuse; our counter code does not store raw IP addresses in its database.</p>
+    <p>Public figures show aggregate browsing sessions, current activity, shared roomba counts and download clicks. They do not identify individual visitors, and a click does not establish that a download or installation finished. We use these measurements to understand usage, operate the counters and explain the site’s audience.</p>
+  </section>
+  <section id="app"><h2>The desktop app</h2>
+    <p>Roombai reads supported coding-agent activity locally to draw rooms and show status. The community-count feature does not upload conversations, agent IDs, project names, file paths or usernames.</p>
+    <p><strong>Share roomba count is off by default.</strong> If enabled in the app menu, it sends an aggregate roomba count, a random installation ID, a random credential and a sequence number about once a minute. The server stores hashes of the identity and credential. Turning sharing off stops periodic reports and attempts to clear the current count; without another report it stops contributing to “online” after five minutes. The app keeps its random identity and sequence locally across restarts.</p>
+    <p>Downloads and update checks contact GitHub and its delivery services, which receive normal network metadata. The optional GitHub whiteboard integration uses your locally authenticated GitHub CLI to request repository information from GitHub. These requests are separate from community analytics.</p>
+  </section>
+  <section><h2>Sponsors and messages</h2>
+    <p>If you email us, we receive your email address and the information you send. To arrange a sponsorship, we use your company name, logo, website, selected placement, purchase information and correspondence to deliver and support that placement. Your approved name, logo and link appear publicly.</p>
+    <p>Online Stripe checkout is not currently enabled. If made available, Stripe will handle payment and billing details under <a href="https://stripe.com/privacy">its privacy policy</a>. Our sponsorship system will store order and payment references, placement dates, status and a hashed management credential; it will not store full card numbers or security codes. The management link is private and should not be shared publicly.</p>
+  </section>
+  <section><h2>Service providers and disclosure</h2>
+    <p>Cloudflare hosts the website and counter database; Railway hosts our Umami analytics instance. GitHub delivers source code, releases and updates. Our email provider processes support correspondence, and Stripe processes payments when used. These services process data needed to deliver, secure and support their functions and may process it in other countries, including the United States. Their own privacy notices describe their independent processing: <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a>, <a href="https://railway.com/legal/privacy">Railway</a> and <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub</a>.</p>
+    <p>We do not sell visitor or app telemetry to sponsors or give sponsors individual browsing records. Clicking a sponsor’s link takes you to their website, where their privacy policy applies. We may disclose records when legally required or reasonably necessary to investigate abuse, protect users or resolve a dispute.</p>
+  </section>
+  <section id="retention"><h2>How long records remain</h2>
+    <ul>
+      <li>Counter visit and download-event records become eligible for deletion after one day; installation records after 30 days without a heartbeat; rate-limit records after about two minutes. Cleanup runs on subsequent qualifying requests, so deletion is not immediate at the threshold.</li>
+      <li>Aggregate visit and download totals have no automatic expiry. Our website code does not configure an automatic deletion schedule for the self-hosted Umami instance; analytics may remain until deleted.</li>
+      <li>The browser’s stored session can remain until it is replaced on a later visit or you clear site storage. The app’s local count-sharing identity remains until its local data is removed.</li>
+      <li>We keep support and sponsorship records as needed to provide the service, handle refunds and disputes, and meet accounting or other legal obligations. Removal of a public placement does not automatically delete its transaction records. Provider logs and backups follow their applicable retention practices.</li>
+    </ul>
+  </section>
+  <section id="choices"><h2>Your choices and rights</h2>
+    <p>You can turn off <strong>Share roomba count</strong> in the app menu. The website’s community-counter code skips visit and click reporting when your browser sends Do Not Track or Global Privacy Control. That check applies to our counters; the separately loaded Umami script is not currently covered by it. Browser tracker-blocking tools can block Umami. Clearing local storage removes the browser’s session ID but does not opt you out of future visits.</p>
+    <p>Depending on the laws that apply to you, you may have rights to request access, correction, deletion, portability or restriction of personal information, object to processing, or complain to your local privacy authority. Contact us at <a href="mailto:joelecastilloj@gmail.com">joelecastilloj@gmail.com</a>. We may need to verify a request, and aggregate statistics or random identifiers may not be linkable to you. We may retain records where the law permits or requires it.</p>
+    <p>We use information to deliver requested services, respond to you, understand and protect the service, and meet legal obligations. Where consent is required, it must be obtained separately; this notice itself is not a request for consent.</p>
+  </section>
+  <section><h2>Children and policy changes</h2><p>Roombai is intended for developers and is not directed to children under 13. If you believe a child has supplied personal information, contact us so we can address it. We will update this page and its date when our practices change, and provide additional notice where required.</p></section>
+</main>
+<footer class="foot"><span>Roombai · Nottifai LLC · Made by <a href="https://twitter.com/joeldev_">joeldev_</a></span><a href="mailto:joelecastilloj@gmail.com">Contact us</a><a href="https://github.com/latinrev/roombai">View source on GitHub</a></footer>
+</body></html>
