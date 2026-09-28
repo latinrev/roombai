@@ -730,7 +730,7 @@ function showTip(r, pin) {
   document.querySelector('#tip-foot .btns').style.display = pin ? 'flex' : 'none';
   tipEl.hidden = false;
   tipEl.dataset.id = r.id;
-  // position above the roomba, clamped to the window
+  // Follow the roomba; its movement pauses while this card is pinned.
   const by = baseOf(r);
   const w = tipEl.offsetWidth; const h = tipEl.offsetHeight;
   let left = r.x * scale - w / 2;
@@ -815,7 +815,6 @@ function update(dt) {
 }
 
 function updateRoomba(r, dt) {
-  nagRoomba(r, dt);
   r.blink -= dt;
   if (r.blink < 0) r.blink = rand(2.5, 6);
   const status = r.agent.status;
@@ -828,6 +827,11 @@ function updateRoomba(r, dt) {
     r.wheel += dt * 30;
     return;
   }
+
+  // Let dragging and lifecycle transitions work, but pause the selected
+  // roomba's physics, celebration, and reminders until its card closes.
+  if (pinned === r) return;
+  nagRoomba(r, dt);
 
   if (r.mode === 'air') {
     const prevY = r.y;
@@ -2005,6 +2009,7 @@ setInterval(() => {
   roomHop = 1;
 }, 5000);
 function animateRoomHop(dt) {
+  if (pinned) { roomHop = 0; canvas.style.transform = ''; return; }
   if (roomHop <= 0) return;
   roomHop = Math.max(0, roomHop - dt * 2.5);
   const lift = Math.sin((1 - roomHop) * Math.PI) * 5 * scale;
