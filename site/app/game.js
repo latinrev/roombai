@@ -1877,6 +1877,8 @@ function applyConfig(cfg) {
 }
 
 function syncMenu() {
+  $('share-count-option').hidden = !appCfg.communityAvailable;
+  $('opt-share-count').checked = Boolean(appCfg.shareCount);
   $('app-version').textContent = appCfg.version ? `v${appCfg.version}` : '';
   const update = appCfg.update || { state: 'disabled' };
   const available = ['available', 'downloading', 'ready'].includes(update.state);
@@ -1921,6 +1923,7 @@ function toggleMenu() {
 $('opt-ontop').addEventListener('change', (e) => window.bridge.setOption('onTop', e.target.checked));
 $('opt-update').addEventListener('click', () => window.bridge.setOption('update', true));
 $('opt-check-update').addEventListener('click', () => window.bridge.setOption('check-update', true));
+$('opt-share-count').addEventListener('change', (e) => window.bridge.setOption('share-count', e.target.checked));
 $('opt-sound').addEventListener('change', (e) => window.bridge.setOption('muted', !e.target.checked));
 for (const b of document.querySelectorAll('#opt-size button')) b.addEventListener('click', () => window.bridge.setOption('scale', Number(b.dataset.v)));
 for (const b of document.querySelectorAll('#opt-place button')) b.addEventListener('click', () => window.bridge.setOption('anchor', b.dataset.v));

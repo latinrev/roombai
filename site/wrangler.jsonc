@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "roombai",
+  "pages_build_output_dir": ".output",
+  "compatibility_date": "2026-09-27",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "STATS_DB",
+      "database_name": "roombai-community",
+      "database_id": "ada73866-f8bc-4c13-884c-274859dbb248",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SITE_ORIGIN": "https://roombai.com"
+  }
+}

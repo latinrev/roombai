@@ -12,8 +12,9 @@ let win;
 let tray;
 let watcher;
 let updates;
+let community;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
-const settings = { scale: SCALE_DEFAULT, muted: false, onTop: true, collapsed: false };
+const settings = { scale: SCALE_DEFAULT, muted: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
 // Where the room lives: snapped to the bottom of a screen (left / center / right),
 // or 'free' once you drag it somewhere yourself. Remembered between runs.
@@ -27,7 +28,7 @@ function loadPos() {
   } catch {}
 }
 function savePos() { fs.writeFile(posFile(), JSON.stringify({ pos, settings }), () => {}); }
-function config() { return { version: app.getVersion(), update: updates?.status(), scale: cssScale(), muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
+function config() { return { version: app.getVersion(), update: updates?.status(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
 function sendConfig() { if (win && !win.isDestroyed()) win.webContents.send('config', config()); }
 const lastStatus = new Map();
 
@@ -161,6 +162,11 @@ function buildTray() {
 function setOption(key, value) {
   if (key === 'update') { if (updates) void updates.install(); return; }
   if (key === 'check-update') { if (updates) void updates.check(true); return; }
+  if (key === 'share-count') {
+    settings.shareCount = Boolean(value);
+    community?.setEnabled(settings.shareCount);
+    savePos(); sendConfig(); return;
+  }
   if (key === 'anchor') {
     if (value === 'free' && pos.x === null) { const b = win.getBounds(); pos.x = b.x; pos.y = b.y - sizeOn(roomDisplay()).offY; }
     pos.anchor = value;
@@ -200,6 +206,13 @@ app.whenReady().then(() => {
   watcher = new Watcher({ demo: process.argv.includes('--demo') });
   watcher.on('agents', onAgents);
   watcher.start();
+  community = require('./community').createCommunity({
+    app, enabled: settings.shareCount,
+    disabled: Boolean(process.env.ROOM_SHOT) || process.argv.includes('--demo'),
+    getCount: () => new Set(watcher.snapshot().map(agent => agent.id)).size,
+  });
+  community.start();
+  sendConfig();
 
   ipcMain.on('set-ignore', (_e, ignore) => win.setIgnoreMouseEvents(ignore, { forward: true }));
   // Dragging the roof moves the room anywhere on any screen. Moves are measured from where
@@ -278,4 +291,4 @@ function jumpTo(a) {
 }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { if (updates) updates.dispose(); if (watcher) watcher.stop(); });
+app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (watcher) watcher.stop(); });

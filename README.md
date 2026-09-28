@@ -204,6 +204,8 @@ Merge these entries into your existing `~/.claude/settings.json`; preserve any h
 
 Transcript processing happens locally. Roombai reads session information including project paths and task text to populate the room and detail cards. Room state, todos, and window settings live in Electron's per-user application data directory as `rooms.json`, `todos.json`, and `window.json`.
 
+Optional **Share roomba count** is off by default. When enabled in a packaged app, it sends only the aggregate roomba count, a random installation ID/credential, and a sequence number to the public community counter once a minute. It never sends project names, paths, session IDs, or conversations. Its random identity is stored locally in `community.json`. Turning it off stops the periodic requests and sends a final zero count. See [counter details](docs/community-counters.md).
+
 The event server binds to `127.0.0.1`, not a public network interface. It has no authentication, and its snapshot includes agent details, so keep it local. GitHub boards make network requests through your authenticated GitHub CLI; opening external links hands them to your system browser or supported app.
 
 ## Updates
@@ -292,6 +294,10 @@ Screenshot runs use a separate temporary application-data directory. Inspect the
 Bug reports and pull requests are welcome. For bugs, include your operating system, agent host, reproduction steps, and a screenshot when helpful. Remove private task text and paths before sharing logs or images.
 
 For changes, keep the scope focused, exercise the affected behavior in the app, and include before/after screenshots for visual changes. If you change the renderer, regenerate the site demo with `npm run site`.
+
+## Community counters
+
+The website also has [public community counters](docs/community-counters.md) for visits, browsers online, shared roombas, and download clicks. Desktop count sharing is optional and off by default; it sends no project or conversation data. These counters begin collecting when their backend is deployed, and desktop counts require the corresponding app update.
 
 ## Sponsorship
 

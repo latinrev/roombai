@@ -19,3 +19,8 @@ site/.output/
 .DS_Store
 Thumbs.db
 *.log
+.wrangler/
+.functions-build/
+site/worker-configuration.d.ts
+.dev.vars*
+!.dev.vars.example

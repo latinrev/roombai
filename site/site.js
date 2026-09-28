@@ -23,7 +23,10 @@ for (const a of document.querySelectorAll('.os[data-os]')) {
   if (a.dataset.os === os) a.classList.add('mine');
 }
 if (os) {
-  for (const a of document.querySelectorAll('[data-download]')) a.href = DOWNLOADS[os].href;
+  for (const a of document.querySelectorAll('[data-download]')) {
+    a.href = DOWNLOADS[os].href;
+    a.dataset.downloadAsset = os;
+  }
   for (const s of document.querySelectorAll('[data-download-label]')) s.textContent = DOWNLOADS[os].label + ' · free';
 }
 
@@ -194,7 +197,7 @@ for (const pyramid of document.querySelectorAll('[data-pyramid]')) {
     for (let i = 0; i < row; i++) {
       const a = document.createElement('a');
       a.className = 'slot';
-      a.href = 'mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square';
+      a.href = 'mailto:joelecastilloj@gmail.com?subject=Roombai%20sponsor%20square';
       a.innerHTML = row <= 2 || side === 'page' ? '<i>+</i><span>Your company here</span>' : '<i>+</i>';
       a.title = 'Your company here';
       a.setAttribute('aria-label', `Sponsor square (${side}, row ${row}): your company here`);

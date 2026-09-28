@@ -32,8 +32,8 @@
   <a class="btn btn-small" data-download href="#download">Download</a>
 </header>
 
-<aside class="rail rail-left" aria-label="Sponsors"><div class="pyramid" data-pyramid data-side="left"></div><a class="rail-cta" href="mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square">Your company here</a></aside>
-<aside class="rail rail-right" aria-label="More sponsors"><div class="pyramid" data-pyramid data-side="right"></div><a class="rail-cta" href="mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square">Claim a square</a></aside>
+<aside class="rail rail-left" aria-label="Sponsors"><div class="pyramid" data-pyramid data-side="left"></div><a class="rail-cta" href="mailto:joelecastilloj@gmail.com?subject=Roombai%20sponsor%20square">Your company here</a></aside>
+<aside class="rail rail-right" aria-label="More sponsors"><div class="pyramid" data-pyramid data-side="right"></div><a class="rail-cta" href="mailto:joelecastilloj@gmail.com?subject=Roombai%20sponsor%20square">Claim a square</a></aside>
 
 <main id="top">
   <!-- ============ hero: the live room on a pixel desktop ============ -->
@@ -46,6 +46,20 @@
         <a class="btn btn-big" data-download href="#download"><span data-download-label>Download free</span></a>
         <p class="cta-note">Free · <span data-os-list>Windows · macOS · Linux</span> · nothing to set up</p>
       </div>
+    </div>
+
+    <div class="community" aria-label="Roombai community counters">
+      <p id="community-status" class="community-status" role="status">Connecting to the community…</p>
+      <dl class="community-counts">
+        <div><dt>Total visits</dt><dd data-community="visits">—</dd></div>
+        <div><dt>Browsing now</dt><dd data-community="browsingNow">—</dd></div>
+        <div><dt>Roombas online</dt><dd data-community="roombasOnline">—</dd></div>
+        <div><dt>Download clicks</dt><dd data-community="downloadClicks">—</dd></div>
+      </dl>
+      <details class="community-info">
+        <summary>About these counts</summary>
+        <p>Counts since <span id="community-since">tracking begins</span>. Visits count browsing sessions, not unique people; refreshing or opening another tab shares the same session. Browsing now counts browsers active within 90 seconds. Roombas come from apps that enable “Share roomba count” and checked in within five minutes. Download clicks do not measure finished downloads or installs. Tracking blockers may prevent counts.</p>
+      </details>
     </div>
 
     <div class="monitor" aria-label="Live demo of Roombai">
@@ -172,7 +186,7 @@
     <h2 id="sponsors-title">Roombai is free, thanks to these folks.</h2>
     <p>See the pyramids on both sides of this page? Every square is up for grabs. The big one on top is the best seat in the house.</p>
     <div class="pyramid" data-pyramid></div>
-    <a class="btn btn-ghost" href="mailto:hello@example.com?subject=Roomba%20Room%20sponsor%20square">Claim a square</a>
+    <a class="btn btn-ghost" href="mailto:joelecastilloj@gmail.com?subject=Roombai%20sponsor%20square">Claim a square</a>
   </section>
 
   <!-- ============ download ============ -->
@@ -196,5 +210,6 @@
 </footer>
 
 <script src="site.js"></script>
+<script type="module" src="community.js"></script>
 </body>
 </html>

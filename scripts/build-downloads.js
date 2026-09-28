@@ -42,7 +42,9 @@ async function build() {
   if (seen.size !== Object.keys(downloads).length) throw new Error('Website is missing a download link');
   fs.mkdirSync(output, { recursive: true });
   for (const name of fs.readdirSync(source)) {
-    if (name !== '.output' && name !== 'downloads') fs.cpSync(path.join(source, name), path.join(output, name), { recursive: true });
+    if (!['.output', 'downloads', 'node_modules', 'functions', 'server', 'migrations', 'test', 'package.json', 'package-lock.json', 'wrangler.jsonc', 'worker-configuration.d.ts'].includes(name) && !name.startsWith('.')) {
+      fs.cpSync(path.join(source, name), path.join(output, name), { recursive: true });
+    }
   }
   fs.writeFileSync(path.join(output, 'index.html'), html);
   console.log(`Website downloads resolved from published release ${release.tag_name}`);
