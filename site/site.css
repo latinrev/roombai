@@ -235,6 +235,10 @@ section { padding: clamp(64px, 9vw, 120px) clamp(16px, 4vw, 40px); }
 /* ---------- sponsors ---------- */
 .sponsors { background: var(--plum); color: var(--cream); text-align: center; border-block: 3px solid var(--ink); }
 .sponsors > p { margin: 14px auto 0; color: #eadbe6; max-width: 52ch; }
+.sponsor-walls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 40px; max-width: 960px; margin: 40px auto 36px; }
+.sponsor-wall h3 { font: 700 1.4rem var(--display); color: var(--butter); }
+.sponsor-wall .pyramid { margin: 20px auto 0; }
+.sponsor-wall .slot { --s: clamp(54px, 7vw, 96px); }
 .pyramid { margin: 44px auto 36px; display: grid; gap: 12px; justify-content: center; }
 .pyramid-row { display: flex; justify-content: center; gap: 12px; }
 .slot {
@@ -351,6 +355,6 @@ section { padding: clamp(64px, 9vw, 120px) clamp(16px, 4vw, 40px); }
   .rail-cta:hover { color: #fff; }
   .rail-cta::after { content: 'USD / 30 days'; display: block; margin-top: 5px; color: var(--cream); font-size: .75rem; text-decoration: none; }
   /* the walls are the sponsor space now, so the in-page pyramid steps aside */
-  .sponsors .pyramid { display: none; }
+  .sponsor-walls { display: none; }
   .nav { margin-inline: calc(-1 * var(--rail)); }
 }
