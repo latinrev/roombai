@@ -492,7 +492,9 @@ window.addEventListener('mousemove', (e) => {
   hoverPlus = !r && onPlus(p.x, p.y);
   hoverFurn = target || clutterAt(p.x, p.y) ? null : furnitureAt(p.x, p.y);
   hoverSign = signPart(p.x, p.y);
-  canvas.style.cursor = r || hoverTodo || clutterAt(p.x, p.y) ? 'grab' : hoverPlus || hoverSign || hoverGh || hoverCrank || hoverFaceTitle ? 'pointer' : onRoof(p.x, p.y) ? 'move' : 'default';
+  const roofHover = roofButtonAt(p.x, p.y);
+  canvas.title = roofHover === 'snooze' ? (appCfg.snoozing ? 'Resume alerts (snoozed indefinitely)' : 'Snooze all alerts indefinitely') : '';
+  canvas.style.cursor = roofHover ? 'pointer' : r || hoverTodo || clutterAt(p.x, p.y) ? 'grab' : hoverPlus || hoverSign || hoverGh || hoverCrank || hoverFaceTitle ? 'pointer' : onRoof(p.x, p.y) ? 'move' : 'default';
   if (!pinned) {
     if (target) showTip(target, false);
     else if (!tipEl.hidden && !tipEl.matches(':hover')) hideTip();
@@ -519,6 +521,7 @@ canvas.addEventListener('mousedown', (e) => {
   }
   const sp = signPart(p.x, p.y);
   const rb = roofButtonAt(p.x, p.y);
+  if (rb === 'snooze') { window.bridge.setOption('snoozing', !appCfg.snoozing); return; }
   if (rb === 'menu') { toggleMenu(); return; }
   if (rb === 'ackAll') { ackAll(); return; }
   if (rb === 'roll') { window.bridge.setOption('collapsed', !appCfg.collapsed); return; }
@@ -1885,7 +1888,7 @@ window.addEventListener('beforeunload', () => { if (room && window.bridge) { sna
 
 
 // ---------- settings from main, the in-game menu, and rolling up ----------
-let appCfg = { scale: 3, muted: false, onTop: true, collapsed: false, anchor: 'right', size: 3 };
+let appCfg = { scale: 3, muted: false, snoozing: false, onTop: true, collapsed: false, anchor: 'right', size: 3 };
 let viewTop = 0; // rows of art hidden above the window while rolled up
 const COLLAPSED_TOP = 9;
 const menuEl = document.getElementById('menu');
@@ -1893,8 +1896,9 @@ const menuEl = document.getElementById('menu');
 function applyConfig(cfg) {
   appCfg = { ...appCfg, ...cfg };
   applyScale(cfg.scale);
-  muted = cfg.muted;
-  Sfx.setMuted(cfg.muted);
+  muted = appCfg.muted || appCfg.snoozing;
+  Sfx.setMuted(muted);
+  if (appCfg.snoozing) { roomHop = 0; canvas.style.transform = ''; }
   head = cfg.head || 0;
   document.body.style.transform = head ? `translateY(${head}px)` : '';
   viewTop = appCfg.collapsed ? COLLAPSED_TOP : 0;
@@ -1964,7 +1968,7 @@ canvas.addEventListener('mousedown', (e) => {
 }, true);
 
 // roof buttons live where the grip dots used to be, on the right end of the roof
-const ROOF_BTNS = { roll: W - 26, menu: W - 15 };
+const ROOF_BTNS = { snooze: W - 37, roll: W - 26, menu: W - 15 };
 const ACK_BTN_X = 46; // "acknowledge all", just right of the mess gauge
 function roofButtonAt(x, y) {
   if (['available', 'downloading', 'ready'].includes(appCfg.update?.state)) {
@@ -1980,10 +1984,15 @@ function roofButtonAt(x, y) {
 function drawRoofButtons() {
   const hover = roofButtonAt(pointer.x, pointer.y);
   for (const [k, bx] of Object.entries(ROOF_BTNS)) {
-    const hot = hover === k || (k === 'menu' && !menuEl.hidden);
+    const hot = hover === k || (k === 'menu' && !menuEl.hidden) || (k === 'snooze' && appCfg.snoozing);
     rect(bx, ROOF_Y + 1, 9, 8, hot ? '#3d2f4a' : '#2b2233');
     const c = hot ? '#ffffff' : '#ffd166';
-    if (k === 'roll') { // roll up / unroll arrow
+    if (k === 'snooze') { // a pixel Z; green while alerts are snoozed
+      const z = appCfg.snoozing ? '#3ddc84' : c;
+      rect(bx + 2, ROOF_Y + 3, 5, 1, z);
+      px(bx + 5, ROOF_Y + 4, z); px(bx + 4, ROOF_Y + 5, z);
+      rect(bx + 2, ROOF_Y + 6, 5, 1, z);
+    } else if (k === 'roll') { // roll up / unroll arrow
       if (appCfg.collapsed) { px(bx + 4, ROOF_Y + 3, c); rect(bx + 3, ROOF_Y + 4, 3, 1, c); rect(bx + 2, ROOF_Y + 5, 5, 1, c); }
       else { rect(bx + 2, ROOF_Y + 3, 5, 1, c); rect(bx + 3, ROOF_Y + 4, 3, 1, c); px(bx + 4, ROOF_Y + 5, c); }
       rect(bx + 2, ROOF_Y + 6, 5, 1, c);
@@ -2015,7 +2024,7 @@ const NAG_RANK = { stuck: 3, waiting: 2, done: 1 };
 const snoozed = new Map(); // agent id -> snoozed until (ms)
 
 function nagging(a) {
-  return NAG_RANK[a.status] && (snoozed.get(a.id) || 0) < Date.now();
+  return !appCfg.snoozing && NAG_RANK[a.status] && (snoozed.get(a.id) || 0) < Date.now();
 }
 
 function currentNag() {

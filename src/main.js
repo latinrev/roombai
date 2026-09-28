@@ -14,7 +14,7 @@ let watcher;
 let updates;
 let community;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
-const settings = { scale: SCALE_DEFAULT, muted: false, onTop: true, collapsed: false, shareCount: false };
+const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
 // See-through space above the room so agent cards can open above their roomba
 // instead of covering the room. Clicks there pass through to the desktop.
@@ -31,7 +31,7 @@ function loadPos() {
   } catch {}
 }
 function savePos() { fs.writeFile(posFile(), JSON.stringify({ pos, settings }), () => {}); }
-function config() { return { version: app.getVersion(), update: updates?.status(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
+function config() { return { version: app.getVersion(), update: updates?.status(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, snoozing: settings.snoozing, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
 function sendConfig() { if (win && !win.isDestroyed()) win.webContents.send('config', config()); }
 const lastStatus = new Map();
 
@@ -107,7 +107,7 @@ function createWindow() {
 }
 
 function notify(agent, status) {
-  if (settings.muted || !Notification.isSupported()) return;
+  if (settings.muted || settings.snoozing || !Notification.isSupported()) return;
   const who = `${agent.provider}${agent.project ? ' · ' + agent.project : ''}`;
   const text = {
     done: ['✅ Roomba finished!', agent.title],
@@ -149,6 +149,7 @@ function trayMenu() {
     { label: 'Size: normal (3x)', type: 'radio', checked: settings.scale === 3, click: () => setOption('scale', 3) },
     { label: 'Size: big (4x)', type: 'radio', checked: settings.scale === 4, click: () => setOption('scale', 4) },
     { type: 'separator' },
+    { label: 'Snooze indefinitely', type: 'checkbox', checked: settings.snoozing, click: (i) => setOption('snoozing', i.checked) },
     { label: 'Mute alerts', type: 'checkbox', checked: settings.muted, click: (i) => setOption('muted', i.checked) },
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
     { type: 'separator' },
@@ -179,6 +180,8 @@ function setOption(key, value) {
     settings.scale = value;
   } else if (key === 'muted') {
     settings.muted = Boolean(value);
+  } else if (key === 'snoozing') {
+    settings.snoozing = Boolean(value);
   } else if (key === 'onTop') {
     settings.onTop = Boolean(value);
     win.setAlwaysOnTop(settings.onTop, 'screen-saver');
