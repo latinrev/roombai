@@ -7,6 +7,7 @@ html, body {
   user-select: none;
   font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
 }
+body { overflow: visible; } /* cards may open above the room, in the window's see-through top */
 
 #room {
   position: absolute;

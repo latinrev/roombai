@@ -420,7 +420,8 @@ let hoverFaceTitle = false;
 let pinned = null;
 let ignoring = true;
 
-function toInternal(e) { return { x: e.clientX / scale, y: e.clientY / scale + viewTop }; }
+let head = 0; // see-through px above the room (desktop app only), where cards can open
+function toInternal(e) { return { x: e.clientX / scale, y: (e.clientY - head) / scale + viewTop }; }
 
 function roombaAt(x, y) {
   let best = null;
@@ -747,12 +748,18 @@ function showTip(r, pin) {
   document.querySelector('#tip-foot .btns').style.display = pin ? 'flex' : 'none';
   tipEl.hidden = false;
   tipEl.dataset.id = r.id;
-  // Always just above the roomba. If the window is too short (small size, high perch),
-  // slide down only as far as needed rather than jumping below it.
+  // Just above the roomba; below it when there's no room above (ceiling, high perch).
+  // Only when neither fits does it overlap, and then it slides only as far as needed.
+  // Hover cards let clicks through so the roomba underneath can still be grabbed.
+  tipEl.style.pointerEvents = pin ? '' : 'none';
   const by = baseOf(r);
   const w = tipEl.offsetWidth; const h = tipEl.offsetHeight;
+  const above = (by - 16) * scale - h;
+  const below = (by + (r.mode === 'ceiling' ? 14 : 4)) * scale;
+  // With see-through space above the room (desktop app), the card is always above.
+  const top = above >= 2 - head ? above : below + h <= H * scale - 2 ? below : 2 - head;
   tipEl.style.left = clamp(r.x * scale - w / 2, 4, W * scale - w - 4) + 'px';
-  tipEl.style.top = Math.max(2, (by - 16) * scale - h) + 'px';
+  tipEl.style.top = top + 'px';
 }
 function hideTip() { pinned = null; tipEl.hidden = true; }
 $('tip-ack').addEventListener('click', () => {
@@ -1888,6 +1895,8 @@ function applyConfig(cfg) {
   applyScale(cfg.scale);
   muted = cfg.muted;
   Sfx.setMuted(cfg.muted);
+  head = cfg.head || 0;
+  document.body.style.transform = head ? `translateY(${head}px)` : '';
   viewTop = appCfg.collapsed ? COLLAPSED_TOP : 0;
   canvas.style.top = -viewTop * scale + 'px';
   if (appCfg.collapsed) { hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList(); }
@@ -1902,12 +1911,12 @@ function syncMenu() {
   const available = ['available', 'downloading', 'ready'].includes(update.state);
   $('update-notice').hidden = !available && update.state !== 'error';
   $('update-message').textContent = update.state === 'error' ? 'Update failed' : "There's a new update";
-  $('update-detail').textContent = update.state === 'ready' ? `v${update.version} · Installs and restarts Roombai.`
+  $('update-detail').textContent = update.state === 'ready' ? `v${update.version} · Installing and restarting…`
     : update.state === 'downloading' ? `Downloading v${update.version}…`
-    : update.state === 'available' ? `v${update.version} · Download and replace this build.`
+    : update.state === 'available' ? (update.automatic ? `v${update.version} · Downloads, installs and reopens Roombai.` : `v${update.version} · Download and replace this build.`)
     : 'Check your connection and try again.';
-  $('opt-update').textContent = update.state === 'downloading' ? 'Downloading…' : update.state === 'error' ? 'Retry' : update.automatic ? 'Install' : 'Download';
-  $('opt-update').disabled = update.busy || update.state === 'downloading';
+  $('opt-update').textContent = update.state === 'downloading' ? 'Downloading…' : update.state === 'ready' ? 'Installing…' : update.state === 'error' ? 'Retry' : update.automatic ? 'Update' : 'Download';
+  $('opt-update').disabled = update.busy || update.state === 'downloading' || update.state === 'ready';
   $('opt-check-update').hidden = update.state === 'disabled' || available || update.state === 'error';
   $('opt-check-update').disabled = update.busy;
   $('opt-check-update').textContent = update.state === 'checking' ? 'Checking…' : update.state === 'current' ? 'Up to date' : 'Check for updates';
@@ -1922,7 +1931,7 @@ function syncMenu() {
 function positionMenu() {
   // Reserve the roof controls; scroll the panel instead of moving it over them.
   const top = (ROOF_Y + 10 - viewTop) * scale;
-  menuEl.style.maxHeight = Math.max(0, window.innerHeight - top - 4) + 'px';
+  menuEl.style.maxHeight = Math.max(0, window.innerHeight - head - top - 4) + 'px';
   menuEl.style.left = Math.max(4, Math.min(W * scale - menuEl.offsetWidth - 8, window.innerWidth - menuEl.offsetWidth - 4)) + 'px';
   menuEl.style.top = top + 'px';
 }

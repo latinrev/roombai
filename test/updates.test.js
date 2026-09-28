@@ -12,7 +12,9 @@ function setup(options = {}) {
   let checks = 0;
   let installs = 0;
   let lookups = 0;
+  let downloads = 0;
   updater.quitAndInstall = () => installs++;
+  updater.downloadUpdate = async () => { downloads++; };
   updater.checkForUpdates = async () => { checks++; return { updateInfo: { version: '0.1.1' } }; };
   const updates = createUpdates({
     app: { isPackaged: true, getVersion: () => '0.1.1' },
@@ -25,7 +27,7 @@ function setup(options = {}) {
     ...options,
   });
   return { updates, updater, messages, opened, scheduled, responses,
-    counts: () => ({ checks, installs, lookups }) };
+    counts: () => ({ checks, installs, lookups, downloads }) };
 }
 
 test('development and demo builds never check or schedule updates', async () => {
@@ -34,7 +36,7 @@ test('development and demo builds never check or schedule updates', async () => 
     f.updates.start();
     await f.updates.check(true);
     assert.equal(f.scheduled.length, 0);
-    assert.deepEqual(f.counts(), { checks: 0, installs: 0, lookups: 0 });
+    assert.deepEqual(f.counts(), { checks: 0, installs: 0, lookups: 0, downloads: 0 });
     assert.equal(f.updates.status().state, 'disabled');
   }
 });
@@ -45,26 +47,30 @@ test('installed builds check after startup and every six hours, only once schedu
   assert.deepEqual(f.scheduled.map(s => s.delay), [15000, 21600000]);
 });
 
-test('Windows installer downloads automatically but never installs on normal quit', async () => {
+test('Windows installer only checks in the background; nothing downloads or installs on its own', async () => {
   const f = setup();
+  f.updater.checkForUpdates = async () => ({ updateInfo: { version: '0.1.2' } });
   await f.updates.check();
-  assert.equal(f.updater.autoDownload, true);
+  assert.equal(f.updates.status().state, 'available');
+  assert.equal(f.counts().downloads, 0);
+  assert.equal(f.counts().installs, 0);
+  assert.equal(f.updater.autoDownload, false);
   assert.equal(f.updater.autoInstallOnAppQuit, false);
   assert.equal(f.updater.allowPrerelease, false);
   assert.equal(f.updater.allowDowngrade, false);
   assert.equal(f.messages.length, 0);
 });
 
-test('downloaded updates stay in the menu until Install is clicked', async () => {
+test('one Update click downloads, then installs silently and reopens', async () => {
   const f = setup();
+  let args;
+  f.updater.checkForUpdates = async () => ({ updateInfo: { version: '0.1.2' } });
+  f.updater.quitAndInstall = (...a) => { args = a; };
   await f.updates.check();
-  f.updater.emit('update-downloaded', { version: '0.1.2' });
-  await new Promise(setImmediate);
-  assert.equal(f.counts().installs, 0);
-  assert.equal(f.updates.status().state, 'ready');
-  assert.equal(f.messages.length, 0);
   await f.updates.install();
-  assert.equal(f.counts().installs, 1);
+  assert.equal(f.counts().downloads, 1);
+  assert.deepEqual(args, [true, true]);
+  assert.equal(f.messages.length, 0);
 });
 
 test('manual checks report up to date', async () => {
@@ -74,14 +80,15 @@ test('manual checks report up to date', async () => {
   assert.equal(f.messages.length, 0);
 });
 
-test('Install is inert before a download is ready and repeated clicks cannot install twice', async () => {
+test('Update is inert before an update is found and repeated clicks cannot install twice', async () => {
   const f = setup();
   await f.updates.install();
   assert.equal(f.counts().installs, 0);
+  f.updater.checkForUpdates = async () => ({ updateInfo: { version: '0.1.2' } });
   await f.updates.check();
-  f.updater.emit('update-downloaded', { version: '0.1.2' });
+  await Promise.all([f.updates.install(), f.updates.install()]);
   await f.updates.install();
-  await f.updates.install();
+  assert.equal(f.counts().downloads, 1);
   assert.equal(f.counts().installs, 1);
   assert.equal(f.messages.length, 0);
 });

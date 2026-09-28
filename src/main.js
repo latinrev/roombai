@@ -16,6 +16,9 @@ let community;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
+// See-through space above the room so agent cards can open above their roomba
+// instead of covering the room. Clicks there pass through to the desktop.
+const HEAD = 180;
 // Where the room lives: snapped to the bottom of a screen (left / center / right),
 // or 'free' once you drag it somewhere yourself. Remembered between runs.
 let pos = { anchor: 'right', x: null, y: null, displayId: null };
@@ -28,7 +31,7 @@ function loadPos() {
   } catch {}
 }
 function savePos() { fs.writeFile(posFile(), JSON.stringify({ pos, settings }), () => {}); }
-function config() { return { version: app.getVersion(), update: updates?.status(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
+function config() { return { version: app.getVersion(), update: updates?.status(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
 function sendConfig() { if (win && !win.isDestroyed()) win.webContents.send('config', config()); }
 const lastStatus = new Map();
 
@@ -74,9 +77,11 @@ function bounds() {
   const { w, h, offY } = sizeOn(roomDisplay());
   const clampX = (x) => Math.max(wa.x, Math.min(wa.x + wa.width - w, x));
   const clampY = (y) => Math.max(wa.y, Math.min(wa.y + wa.height - h, y));
-  if (pos.anchor === 'free' && pos.x !== null) return { x: clampX(pos.x), y: clampY(pos.y + offY), width: w, height: h };
+  // The window starts HEAD above the room; the room itself keeps its place on screen.
+  const withHead = (x, y) => ({ x, y: y - HEAD, width: w, height: h + HEAD });
+  if (pos.anchor === 'free' && pos.x !== null) return withHead(clampX(pos.x), clampY(pos.y + offY));
   const xByAnchor = { left: wa.x + 12, center: wa.x + Math.round((wa.width - w) / 2), right: wa.x + wa.width - w - 12 };
-  return { x: xByAnchor[pos.anchor] ?? xByAnchor.right, y: wa.y + wa.height - h, width: w, height: h };
+  return withHead(xByAnchor[pos.anchor] ?? xByAnchor.right, wa.y + wa.height - h);
 }
 
 function createWindow() {
@@ -168,7 +173,7 @@ function setOption(key, value) {
     savePos(); sendConfig(); return;
   }
   if (key === 'anchor') {
-    if (value === 'free' && pos.x === null) { const b = win.getBounds(); pos.x = b.x; pos.y = b.y - sizeOn(roomDisplay()).offY; }
+    if (value === 'free' && pos.x === null) { const b = win.getBounds(); pos.x = b.x; pos.y = b.y + HEAD - sizeOn(roomDisplay()).offY; }
     pos.anchor = value;
   } else if (key === 'scale') {
     settings.scale = value;
@@ -218,18 +223,18 @@ app.whenReady().then(() => {
   // Dragging the roof moves the room anywhere on any screen. Moves are measured from where
   // the drag started, so bumping into an edge never leaves the room lagging behind the cursor.
   let drag = null;
-  ipcMain.on('drag-start', () => { const b = win.getBounds(); drag = { x: b.x, y: b.y }; });
+  ipcMain.on('drag-start', () => { const b = win.getBounds(); drag = { x: b.x, y: b.y + HEAD }; }); // room top, not window top
   ipcMain.on('drag-move', (_e, dx, dy) => {
     if (!drag) return;
     const b = win.getBounds();
     const want = { x: drag.x + Math.round(dx), y: drag.y + Math.round(dy || 0) };
     // the screen under the room's middle decides its size (scaling) and the edges it stays inside
-    const d = screen.getDisplayNearestPoint({ x: Math.round(want.x + b.width / 2), y: Math.round(want.y + b.height / 2) });
+    const d = screen.getDisplayNearestPoint({ x: Math.round(want.x + b.width / 2), y: Math.round(want.y + (b.height - HEAD) / 2) });
     const { w, h, offY } = sizeOn(d);
     const wa = d.workArea;
     const nx = Math.max(wa.x, Math.min(wa.x + wa.width - w, want.x));
     const ny = Math.max(wa.y, Math.min(wa.y + wa.height - h, want.y));
-    win.setBounds({ x: nx, y: ny, width: w, height: h });
+    win.setBounds({ x: nx, y: ny - HEAD, width: w, height: h + HEAD });
     const moved = d.id !== pos.displayId;
     pos = { anchor: 'free', x: nx, y: ny - offY, displayId: d.id };
     if (moved) sendConfig();

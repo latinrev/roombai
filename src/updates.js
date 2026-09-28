@@ -21,12 +21,12 @@ function createUpdates({ app, shell, getUpdater, onChange = () => {},
   function configureUpdater() {
     if (updater) return;
     updater = getUpdater();
-    updater.autoDownload = true;
+    // Only check in the background. Nothing downloads until the person clicks Update.
+    updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
     updater.allowPrerelease = false;
     updater.allowDowngrade = false;
-    updater.on('update-available', (info) => { version = info.version; setState('downloading'); });
-    updater.on('update-downloaded', (info) => { version = info.version; setState('ready'); });
+    updater.on('update-available', (info) => { version = info.version; setState('available'); });
     // Handle EventEmitter errors; rejected check/download promises set UI state below.
     updater.on('error', () => {});
   }
@@ -41,7 +41,7 @@ function createUpdates({ app, shell, getUpdater, onChange = () => {},
         configureUpdater();
         const result = await updater.checkForUpdates();
         available = Boolean(result && semver.gt(result.updateInfo.version, app.getVersion()));
-        if (result?.downloadPromise) await result.downloadPromise;
+        if (available) { version = result.updateInfo.version; setState('available'); }
       } else {
         const response = await fetchRelease(RELEASE_API, {
           headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000),
@@ -62,10 +62,17 @@ function createUpdates({ app, shell, getUpdater, onChange = () => {},
     if (!enabled || disposed || busy) return;
     if (state === 'error') { await check(true); return; }
     try {
-      if (state === 'ready') {
+      if (state === 'available' && automatic) {
+        // One click: download, then install silently in place and reopen Roombai.
+        busy = true;
+        setState('downloading');
+        await updater.downloadUpdate();
+        setState('ready');
+        updater.quitAndInstall(true, true);
+      } else if (state === 'ready') {
         busy = true;
         onChange();
-        updater.quitAndInstall();
+        updater.quitAndInstall(true, true);
       } else if (state === 'available' && !automatic) {
         await shell.openExternal(RELEASES);
       }
