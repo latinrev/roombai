@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Claim a sponsor square · Roombai</title>
+  <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/sponsor/sponsor.css">
+</head>
+<body class="sponsor-page">
+  <nav class="nav"><a class="brand" href="/">Roombai</a><a href="/#sponsors">← Back to the room</a></nav>
+  <main class="sponsor-main">
+    <header class="sponsor-heading">
+      <p class="eyebrow">A little square. A month of support.</p>
+      <h1>Put your company on the wall.</h1>
+      <p>Pick a square, add your logo, and support a free, open-source project. One payment. 30 days. No automatic renewal.</p>
+    </header>
+    <p id="service-status" class="service-status" role="status">Loading available squares…</p>
+    <section id="manage" class="manage-panel" hidden aria-labelledby="manage-title">
+      <h2 id="manage-title">Your sponsor square</h2>
+      <p id="manage-status" role="status"></p>
+      <p class="manage-help">Copy and save your private link to check your placement or renew it. We won’t email it to you. Keep it private—anyone with the link can manage your placement.</p>
+      <p class="manage-help">Lost your link? Email <a href="mailto:support@nottifai.com">support@nottifai.com</a> or contact <a href="https://twitter.com/joeldev_" target="_blank" rel="noopener noreferrer">@joeldev_ on Twitter</a>. Include your company name and payment reference in a private message. Recovery is handled manually and may take a few days.</p>
+      <div class="manage-actions">
+        <button type="button" id="copy-link" class="btn btn-small">Copy private link</button>
+        <button type="button" id="refresh-status" class="btn btn-small btn-ghost">Refresh status</button>
+        <a id="resume-checkout" class="btn btn-small" hidden>Continue checkout</a>
+        <button type="button" id="renew" class="btn btn-small" hidden>Add 30 days</button>
+      </div>
+    </section>
+    <div class="sponsor-workspace">
+      <section class="choose-wall" aria-labelledby="choose-title">
+        <h2 id="choose-title">1. Choose your square</h2>
+        <p>Introductory prices in USD, for 30 days.</p>
+        <div class="price-legend"><span>Top <b>$49</b></span><span>Row 2 <b>$29</b></span><span>Row 3 <b>$19</b></span><span>Row 4 <b>$9</b></span></div>
+        <div id="slot-picker" aria-label="Available sponsor squares"></div>
+        <p class="wall-note">Both walls appear beside the room on desktop and in the sponsor section on smaller screens.</p>
+      </section>
+      <section class="sponsor-details" aria-labelledby="details-title">
+        <h2 id="details-title">2. Make it yours</h2>
+        <form id="sponsor-form">
+          <p id="selected-slot">Choose a square on the wall to get started.</p>
+          <label for="company">Company name</label>
+          <input id="company" name="company" required minlength="2" maxlength="60" autocomplete="organization" placeholder="Your company">
+          <label for="website">Website</label>
+          <input id="website" name="website" type="url" required maxlength="500" placeholder="https://your-company.com" autocomplete="url">
+          <label for="logo">Company logo</label>
+          <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="logo-help">
+          <p id="logo-help" class="field-help">PNG, JPG, or WebP, up to 2 MB. We fit the whole logo into your square.</p>
+          <section class="placement-preview" aria-labelledby="preview-title">
+            <h3 id="preview-title">Preview your square</h3>
+            <div class="preview-line"><div id="logo-preview" class="sponsor-preview"><span>Upload your logo</span></div><div class="preview-caption"><b id="preview-name">Your company</b><p id="preview-website">Your link goes here</p><p id="preview-placement" class="field-help">Choose a square to see its placement and price.</p></div></div>
+            <p class="field-help">Your full logo appears on white, without cropping. Square size varies by row and screen size.</p>
+          </section>
+          <label class="terms-check"><input id="agreed" type="checkbox" required><span>I own or have permission to use this logo and agree to the <a href="/terms/" target="_blank" rel="noopener">Terms &amp; Sponsorship Policy</a>, including the refund policy. I have read the <a href="/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
+          <p id="term-preview" class="field-help">Your 30 days start when payment is confirmed.</p>
+          <p id="form-error" role="alert" hidden></p>
+          <button id="pay" class="btn" type="submit" disabled>Choose a square</button>
+          <p class="field-help">Secure payment through Stripe. No account needed.</p>
+        </form>
+      </section>
+    </div>
+    <section id="placement-terms" class="placement-terms">
+      <h2>What you’re buying</h2>
+      <p>A linked logo in one named sponsor square on roombai.com for 30 days after payment confirmation. Renewing an active placement adds 30 days to its current expiry. There is no recurring charge, and no promise of a particular number of views or clicks.</p>
+      <p>Your square is reserved during checkout. Unfinished checkouts expire; delayed payments keep the reservation until Stripe confirms success or failure. Your exact end date appears here after payment.</p>
+      <p>Use accurate company details and a website you control. No impersonation, malware, illegal content, or misleading offers. Placements that break these rules can be removed. Cancel before placement starts for a full refund, or afterward for a prorated refund of unused time. See the <a href="/terms/#refunds">refund policy</a>. For placement issues or refund requests, email <a href="mailto:support@nottifai.com">support@nottifai.com</a> or contact <a href="https://twitter.com/joeldev_" target="_blank" rel="noopener noreferrer">@joeldev_</a>.</p>
+    </section>
+  </main>
+  <footer class="foot"><span>Roombai · Made by <a href="https://twitter.com/joeldev_">joeldev_</a></span><nav class="policy-links" aria-label="Legal"><a href="/privacy/">Privacy</a><a href="/terms/">Terms &amp; refunds</a></nav><a href="https://github.com/latinrev/roombai">View source on GitHub</a></footer>
+  <script type="module" src="/sponsor/sponsor.js"></script>
+</body>
+</html>

@@ -188,26 +188,6 @@ board.addEventListener('click', spinBoard);
 board.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); spinBoard(); } });
 for (const f of faces) { const i = new Image(); i.src = f[0]; }
 
-// ---------- sponsor pyramids: 1, 2, 3, 4 (in the page, and on both side rails) ----------
-for (const pyramid of document.querySelectorAll('[data-pyramid]')) {
-  const side = pyramid.dataset.side || 'page';
-  for (let row = 1; row <= 4; row++) {
-    const price = [49, 29, 19, 9][row - 1];
-    const r = document.createElement('div');
-    r.className = 'pyramid-row';
-    for (let i = 0; i < row; i++) {
-      const a = document.createElement('a');
-      a.className = 'slot';
-      a.href = `mailto:support@nottifai.com?subject=${encodeURIComponent(`Roombai sponsor square — ${side}, row ${row}, square ${i + 1} ($${price} USD / 30 days)`)}`;
-      a.innerHTML = `<span class="slot-price">$${price}</span>${row === 1 || pyramid.closest('.sponsors') ? '<span class="slot-term">30 days</span>' : ''}`;
-      a.title = `Your company here — $${price} USD for 30 days`;
-      a.setAttribute('aria-label', `Sponsor square (${side}, row ${row}, square ${i + 1}): $${price} USD for 30 days. Email to book.`);
-      r.append(a);
-    }
-    pyramid.append(r);
-  }
-}
-
 // ---------- gentle reveals ----------
 const io = new IntersectionObserver((entries) => {
   for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }

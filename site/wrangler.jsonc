@@ -12,9 +12,17 @@
       "database_name": "roombai-community",
       "database_id": "ada73866-f8bc-4c13-884c-274859dbb248",
       "migrations_dir": "migrations"
+    },
+    {
+      "binding": "SPONSORS_DB",
+      "database_name": "roombai-sponsors",
+      "database_id": "6c272a01-33ea-4500-97c7-56ef3074407e",
+      "migrations_dir": "sponsor-migrations"
     }
   ],
   "vars": {
-    "SITE_ORIGIN": "https://roombai.com"
+    "SITE_ORIGIN": "https://roombai.com",
+    "SPONSORS_ENABLED": "true",
+    "STRIPE_LIVE_MODE": "true"
   }
 }

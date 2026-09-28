@@ -1,0 +1,53 @@
+.sponsor-page [hidden] { display: none !important; }
+.sponsor-page { padding-inline: 0; }
+.sponsor-page .nav { justify-content: space-between; margin-inline: 0; }
+.sponsor-page .brand { font: 700 1.8rem var(--display); text-decoration: none; }
+.sponsor-main { max-width: 1200px; margin: auto; padding: 48px 24px 64px; }
+.sponsor-heading { max-width: 760px; margin-bottom: 32px; }
+.sponsor-heading h1 { font-size: clamp(2.8rem, 5vw, 4.3rem); margin: 10px 0 18px; }
+.eyebrow { font-family: var(--display); color: var(--plum); font-weight: 700; }
+.sponsor-workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+.sponsor-workspace section, .placement-terms { padding: 0; }
+.sponsor-workspace h2, .manage-panel h2, .placement-terms h2 { font-size: 1.9rem; margin-bottom: 16px; }
+.choose-wall { background: var(--plum); color: var(--cream); border: 3px solid var(--ink); padding: 24px !important; }
+.price-legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 20px 0 28px; font-size: .95rem; }
+.price-legend b { color: var(--butter); }
+.picker-wall + .picker-wall { margin-top: 28px; padding-top: 24px; border-top: 2px solid var(--plum-hi); }
+.picker-wall h3 { font-size: 1.2rem; text-align: center; }
+.picker-row { display: flex; justify-content: center; gap: 10px; margin-top: 10px; }
+.picker-slot { width: 60px; height: 60px; background: var(--plum); color: var(--cream); border: 2px dashed var(--peach); cursor: pointer; font: 700 1.2rem var(--display); }
+.picker-row:first-of-type .picker-slot { width: 96px; height: 80px; }
+.picker-slot:hover, .picker-slot[aria-pressed="true"] { background: var(--butter); color: var(--ink); border: 2px solid var(--ink); }
+.picker-slot:disabled { cursor: not-allowed; border-style: solid; color: var(--peach); opacity: .6; font-size: .85rem; }
+.wall-note { font-size: .95rem; color: var(--cream); margin-top: 24px; }
+.sponsor-details { min-width: 0; }
+#selected-slot { padding: 12px 14px; background: var(--peach); border-left: 4px solid var(--plum); margin-bottom: 20px; font-weight: 700; }
+#sponsor-form > label:not(.terms-check) { display: block; font-weight: 700; margin: 18px 0 6px; }
+#sponsor-form input:not([type="checkbox"]) { display: block; width: 100%; min-height: 44px; border: 2px solid var(--ink); border-radius: 0; background: var(--cream); color: var(--ink); font: inherit; padding: 9px 12px; }
+#sponsor-form input[type="file"] { font-size: .9rem; padding: 10px; }
+.field-help { font-size: .9rem; color: var(--ink-soft); margin-top: 8px; }
+.placement-preview { margin-top: 28px; padding: 20px !important; background: var(--cream); border: 3px solid var(--ink); }
+.placement-preview h3 { font-size: 1.5rem; }
+.preview-line { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; margin: 20px 0; overflow-wrap: anywhere; }
+.preview-caption { flex: 1 1 160px; min-width: 0; }
+.sponsor-preview { width: 160px; height: 160px; flex: 0 0 160px; background: #fff; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--plum); display: grid; place-items: center; padding: 6px; font-family: var(--display); text-align: center; }
+.sponsor-preview img { width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+#preview-website { font-size: .95rem; }
+.terms-check { display: flex; gap: 10px; align-items: start; font-size: .95rem; margin-top: 28px; }
+.terms-check input { margin-top: 5px; width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--plum); }
+#pay { width: 100%; margin-top: 20px; cursor: pointer; }
+.btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.service-status { margin-bottom: 24px; padding: 12px 16px; border: 2px solid var(--ink); background: var(--butter); }
+#form-error { margin-top: 16px; border-left: 4px solid var(--stuck); padding: 8px 12px; background: var(--cream); }
+.manage-panel { border: 3px solid var(--ink); background: var(--cream); padding: 24px; margin-bottom: 32px; }
+.manage-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.manage-help { margin-top: 12px; max-width: 65ch; font-size: .95rem; }
+.placement-terms { margin-top: 56px; padding-top: 32px; border-top: 3px solid var(--plum); max-width: 75ch; }
+.placement-terms p + p { margin-top: 16px; }
+@media (max-width: 760px) {
+  .sponsor-main { padding: 28px 16px 40px; }
+  .sponsor-workspace { grid-template-columns: 1fr; gap: 32px; }
+  .choose-wall { padding: 20px 12px !important; }
+  .picker-slot { width: 56px; height: 56px; }
+  .sponsor-page .nav { gap: 12px; font-size: .9rem; }
+}

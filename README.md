@@ -301,7 +301,9 @@ The website also has [public community counters](docs/community-counters.md) for
 
 ## Sponsorship
 
-Roombai is free and open source. The landing page includes sponsor-placement placeholders; paid checkout and automatic sponsor publishing are not implemented yet. Sponsorship does not unlock app features.
+Roombai is free and open source. Sponsors can choose one of 20 squares on the website's two walls, preview a linked logo, and buy a **30-day placement** with a one-time Stripe Checkout payment. Introductory USD prices, top to bottom: **$49 / $29 / $19 / $9**. Sponsorship does not unlock app features.
+
+The backend verifies payment, publishes the placement, handles expiry, and supports renewal through a private management link. The landing page reads placements at runtime, so purchases need no commit, deployment, or desktop release. See [sponsorship setup](docs/sponsorship.md) for local testing, deployment, and activation.
 
 ## License
 
