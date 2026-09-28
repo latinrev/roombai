@@ -198,7 +198,7 @@ for (const pyramid of document.querySelectorAll('[data-pyramid]')) {
     for (let i = 0; i < row; i++) {
       const a = document.createElement('a');
       a.className = 'slot';
-      a.href = `mailto:joelecastilloj@gmail.com?subject=${encodeURIComponent(`Roombai sponsor square — ${side}, row ${row}, square ${i + 1} ($${price} USD / 30 days)`)}`;
+      a.href = `mailto:support@nottifai.com?subject=${encodeURIComponent(`Roombai sponsor square — ${side}, row ${row}, square ${i + 1} ($${price} USD / 30 days)`)}`;
       a.innerHTML = `<span class="slot-price">$${price}</span>${row === 1 || pyramid.closest('.sponsors') ? '<span class="slot-term">30 days</span>' : ''}`;
       a.title = `Your company here — $${price} USD for 30 days`;
       a.setAttribute('aria-label', `Sponsor square (${side}, row ${row}, square ${i + 1}): $${price} USD for 30 days. Email to book.`);
