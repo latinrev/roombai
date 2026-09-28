@@ -86,7 +86,7 @@ input {
   outline: none;
 }
 input:focus { background: #fffbe0; }
-#tip { width: 270px; }
+#tip { width: 270px; max-height: calc(100vh - 4px); overflow-y: auto; }
 #todo-pop { width: 260px; }
 #tcard-text { margin: 4px 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
 #tcard-foot { justify-content: space-between; }

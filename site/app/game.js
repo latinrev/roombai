@@ -519,6 +519,7 @@ canvas.addEventListener('mousedown', (e) => {
   const sp = signPart(p.x, p.y);
   const rb = roofButtonAt(p.x, p.y);
   if (rb === 'menu') { toggleMenu(); return; }
+  if (rb === 'ackAll') { ackAll(); return; }
   if (rb === 'roll') { window.bridge.setOption('collapsed', !appCfg.collapsed); return; }
   if (sp === 'prev' || sp === 'next') { cycleRoom(sp === 'prev' ? -1 : 1); return; }
   if (sp === 'name') { toggleRoomList(); return; }
@@ -566,8 +567,22 @@ canvas.addEventListener('dblclick', (e) => {
   const gn = spin ? null : noteAt(p.x, p.y);
   if (gn && (gn.issue || gn.pr)) { window.bridge.openUrl((gn.issue || gn.pr).url); hideTodoCard(); return; }
   const r = roombaAt(p.x, p.y);
-  if (r && r.agent.status === 'done') { window.bridge.ack(r.id); hideTip(); floater('THANKS!', r.x, r.d - 14, '#3a86ff'); }
+  if (r && ackRoomba(r)) hideTip();
 });
+
+// "Got it" for a finished roomba: it stops celebrating and goes back to napping.
+function ackRoomba(r) {
+  if (r.agent.status !== 'done') return false;
+  window.bridge.ack(r.id);
+  floater('THANKS!', r.x, baseOf(r) - 14, '#3a86ff');
+  return true;
+}
+function ackAll() {
+  let n = 0;
+  for (const a of allAgents) if (a.status === 'done') { window.bridge.ack(a.id); n++; }
+  for (const r of roombas.values()) if (r.agent.status === 'done') floater('THANKS!', r.x, baseOf(r) - 14, '#3a86ff');
+  if (n) { if (pinned && pinned.agent.status === 'done') hideTip(); Sfx.tidy(); }
+}
 
 function throwVelocity() {
   const h = pointer.history;
@@ -619,6 +634,8 @@ function release(obj, p, quiet, kind) {
       obj.vx *= 0.2; obj.vy = Math.min(obj.vy, 0) * 0.2;
     }
     if (!quiet) Sfx.drop();
+    // A real throw (not a gentle drop) counts as acknowledging a finished roomba.
+    if (!quiet && kind === 'roomba' && Math.abs(v.vx) + Math.abs(v.vy) >= 250 && ackRoomba(obj) && pinned === obj) hideTip();
   }
 }
 
@@ -730,20 +747,17 @@ function showTip(r, pin) {
   document.querySelector('#tip-foot .btns').style.display = pin ? 'flex' : 'none';
   tipEl.hidden = false;
   tipEl.dataset.id = r.id;
-  // Follow the roomba; its movement pauses while this card is pinned.
+  // Always just above the roomba. If the window is too short (small size, high perch),
+  // slide down only as far as needed rather than jumping below it.
   const by = baseOf(r);
   const w = tipEl.offsetWidth; const h = tipEl.offsetHeight;
-  let left = r.x * scale - w / 2;
-  left = clamp(left, 4, W * scale - w - 4);
-  let top = (by - 16) * scale - h;
-  if (top < 2) top = Math.min((by + 6) * scale, H * scale - h - 2);
-  tipEl.style.left = left + 'px';
-  tipEl.style.top = Math.max(2, top) + 'px';
+  tipEl.style.left = clamp(r.x * scale - w / 2, 4, W * scale - w - 4) + 'px';
+  tipEl.style.top = Math.max(2, (by - 16) * scale - h) + 'px';
 }
 function hideTip() { pinned = null; tipEl.hidden = true; }
 $('tip-ack').addEventListener('click', () => {
   const r = roombas.get(tipEl.dataset.id);
-  if (r) { window.bridge.ack(r.id); floater('THANKS!', r.x, r.d - 14, '#3a86ff'); }
+  if (r) ackRoomba(r);
   hideTip();
 });
 const JUMP_LABEL = { t3code: 'Open t3code ↗', 'codex-app': 'Open Codex app ↗', vscode: 'Open VS Code ↗' };
@@ -1942,6 +1956,7 @@ canvas.addEventListener('mousedown', (e) => {
 
 // roof buttons live where the grip dots used to be, on the right end of the roof
 const ROOF_BTNS = { roll: W - 26, menu: W - 15 };
+const ACK_BTN_X = 46; // "acknowledge all", just right of the mess gauge
 function roofButtonAt(x, y) {
   if (['available', 'downloading', 'ready'].includes(appCfg.update?.state)) {
     const by = appCfg.collapsed ? ROOF_Y - 1 : ROOF_Y - 5;
@@ -1949,6 +1964,7 @@ function roofButtonAt(x, y) {
   }
   if (y < ROOF_Y + 1 || y > ROOF_Y + 9) return null;
   for (const [k, bx] of Object.entries(ROOF_BTNS)) if (x >= bx && x < bx + 9) return k;
+  if (x >= ACK_BTN_X && x < ACK_BTN_X + 9) return 'ackAll';
   return null;
 }
 
@@ -1966,6 +1982,13 @@ function drawRoofButtons() {
       for (let i = 0; i < 3; i++) rect(bx + 2, ROOF_Y + 3 + i * 2, 5, 1, c);
     }
   }
+  // acknowledge-all: a check mark, lit green while any roomba is celebrating
+  const anyDone = allAgents.some((a) => a.status === 'done');
+  const ackHot = hover === 'ackAll';
+  rect(ACK_BTN_X, ROOF_Y + 1, 9, 8, ackHot ? '#3d2f4a' : '#2b2233');
+  const ck = ackHot ? '#ffffff' : anyDone ? '#3ddc84' : '#6b4658';
+  px(ACK_BTN_X + 2, ROOF_Y + 5, ck); px(ACK_BTN_X + 3, ROOF_Y + 6, ck); px(ACK_BTN_X + 4, ROOF_Y + 5, ck);
+  px(ACK_BTN_X + 5, ROOF_Y + 4, ck); px(ACK_BTN_X + 6, ROOF_Y + 3, ck);
   if (['available', 'downloading', 'ready'].includes(appCfg.update?.state)) {
     const bx = ROOF_BTNS.menu + 4;
     const by = appCfg.collapsed ? ROOF_Y - 1 : ROOF_Y - 5;
