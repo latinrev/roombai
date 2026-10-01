@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<meta name="roombai-version" content="0.1.10" />
+<meta name="roombai-version" content="0.1.11" />
 <title>Roombai demo</title>
 <link rel="stylesheet" href="demo.css" />
 <link rel="stylesheet" href="style.css" />
@@ -35,7 +35,7 @@
   </div>
 
   <div id="menu" class="panel" hidden>
-    <div class="pop-title">Roombai <span id="app-version" class="hint"></span></div>
+    <div class="pop-title menu-heading"><strong>Roombai</strong><span id="app-version" class="hint"></span><button id="opt-changelog" type="button" aria-expanded="false" aria-controls="changelog">Changelog</button></div>
     <div id="update-notice" hidden>
       <div class="row"><strong id="update-message">There's a new update</strong><button id="opt-update" type="button">Install</button></div>
       <div id="update-detail" class="hint" role="status"></div>
@@ -50,6 +50,11 @@
     <div class="hint">Hidden? Click the roomba in your system tray to bring it back.</div>
   </div>
 
+  <section id="changelog" class="panel" aria-labelledby="changelog-title" hidden>
+    <div class="pop-title changelog-heading"><strong id="changelog-title">Changelog</strong><button id="changelog-close" type="button">Close</button></div>
+    <div id="changelog-notes" aria-label="Recent changes" tabindex="0"></div>
+  </section>
+
   <div id="rooms" class="panel" hidden>
     <div class="pop-title">Rooms</div>
     <div id="rooms-list"></div>
@@ -61,6 +66,7 @@
   <script src="sfx.js"></script>
   <script src="furniture.js"></script>
   <script src="rooms.js"></script>
+  <script src="changelog.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

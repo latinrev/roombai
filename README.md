@@ -25,6 +25,7 @@ Roombai turns your running coding agents into little robot vacuums in an always-
 - **Make yourself at home.** Move the room between displays, change its size, mute alerts, or roll it up into its roof.
 - **Watch your allowances.** Claude and Codex percentages remaining sit beside Snooze in the roof bar, including when the room is rolled up. Hover for the allowance left in each usage window and its reset time.
 - **Count your roombas.** The total across all rooms appears beside the dismiss button and updates as agents arrive or leave.
+- **See what's changed.** Changelog beside the version in the menu opens a separate card with recent changes, even offline.
 
 Roombai watches your agents. It does not submit prompts or run tasks on their behalf.
 

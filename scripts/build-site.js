@@ -9,7 +9,7 @@ const from = path.join(root, 'src', 'renderer');
 const to = path.join(root, 'site', 'app');
 fs.mkdirSync(to, { recursive: true });
 
-for (const f of ['pixelfont.js', 'sfx.js', 'furniture.js', 'rooms.js', 'game.js', 'style.css']) {
+for (const f of ['pixelfont.js', 'sfx.js', 'furniture.js', 'rooms.js', 'changelog.js', 'game.js', 'style.css']) {
   fs.copyFileSync(path.join(from, f), path.join(to, f));
 }
 

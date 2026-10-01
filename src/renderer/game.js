@@ -510,6 +510,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
+  closeChangelog();
   const p = toInternal(e);
   if (e.button === 2) return;
   const r = roombaAt(p.x, p.y);
@@ -704,6 +705,7 @@ $('todo-form').addEventListener('submit', (e) => {
 });
 
 function showTodoCard(t, pin) {
+  if (!changelogEl.hidden) { if (!pin) return; closeChangelog(); }
   if (pin) pinnedTodo = t;
   const n = noteLayout().find((k) => k.todo === t);
   $('tcard-status').textContent = t.done ? 'done' : 'todo';
@@ -737,6 +739,7 @@ window.addEventListener('keydown', (e) => {
 // ---------- tooltip ----------
 const tipEl = document.getElementById('tip');
 function showTip(r, pin) {
+  if (!changelogEl.hidden) { if (!pin) return; closeChangelog(); }
   if (pin) pinned = r;
   const a = r.agent;
   const statusText = { working: 'working', waiting: 'needs you', stuck: 'stuck', done: 'done', idle: 'napping' }[a.status];
@@ -1426,6 +1429,7 @@ async function requestGh(force) {
 setInterval(() => { if (boardFace !== 0) requestGh(false); }, 60e3);
 
 function showGhCard(n, pin) {
+  if (!changelogEl.hidden) { if (!pin) return; closeChangelog(); }
   const it = n.issue || n.pr;
   if (pin) { pinnedGh = it; pinnedGhNote = n; }
   $('tcard-status').textContent = n.issue ? 'issue #' + it.number : (it.draft ? 'draft PR #' : 'PR #') + it.number;
@@ -1791,6 +1795,7 @@ function reseedStains(key) {
 }
 
 function switchRoom(key) {
+  closeChangelog();
   if (room && room.key === key) { closeRoomList(); return; }
   snapshotRoom();
   hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList();
@@ -1842,6 +1847,7 @@ function refreshRoomList() {
 
 function toggleRoomList() { if (roomsEl.hidden) openRoomList(); else closeRoomList(); }
 function openRoomList() {
+  closeChangelog();
   hideTip(); hideTodoCard(); closeTodoPop();
   refreshRoomList();
   renderRoomList();
@@ -1898,6 +1904,59 @@ let appCfg = { scale: 3, muted: false, snoozing: false, onTop: true, collapsed: 
 let viewTop = 0; // rows of art hidden above the window while rolled up
 const COLLAPSED_TOP = 9;
 const menuEl = document.getElementById('menu');
+const changelogEl = document.getElementById('changelog');
+const changelogNotesEl = document.getElementById('changelog-notes');
+let changelogVersion = null;
+
+function syncChangelog() {
+  if (changelogVersion === appCfg.version) return;
+  changelogVersion = appCfg.version;
+  changelogNotesEl.replaceChildren();
+  for (const release of RELEASE_NOTES) {
+    const article = document.createElement('article');
+    const heading = document.createElement('h3');
+    heading.textContent = `v${release.version}`;
+    if (release.version === appCfg.version) {
+      const current = document.createElement('span');
+      current.className = 'hint';
+      current.textContent = 'This build';
+      heading.append(current);
+    }
+    const list = document.createElement('ul');
+    for (const change of release.changes) {
+      const item = document.createElement('li');
+      item.textContent = change;
+      list.append(item);
+    }
+    article.append(heading, list);
+    changelogNotesEl.append(article);
+  }
+}
+
+function positionChangelog() {
+  const roofTop = (ROOF_Y - viewTop) * scale;
+  const available = head ? head + roofTop - 8 : window.innerHeight - roofTop - 14;
+  changelogEl.style.maxHeight = Math.max(0, Math.min(320, available)) + 'px';
+  changelogEl.style.left = Math.max(4, Math.min(W * scale - changelogEl.offsetWidth - 8, window.innerWidth - changelogEl.offsetWidth - 4)) + 'px';
+  changelogEl.style.top = (head ? roofTop - changelogEl.offsetHeight - 4 : roofTop + 10) + 'px';
+}
+
+function openChangelog() {
+  hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList();
+  menuEl.hidden = true;
+  syncChangelog();
+  changelogEl.hidden = false;
+  $('opt-changelog').setAttribute('aria-expanded', 'true');
+  positionChangelog();
+  $('changelog-close').focus();
+  Sfx.squeak();
+}
+
+function closeChangelog(returnToMenu = false) {
+  changelogEl.hidden = true;
+  $('opt-changelog').setAttribute('aria-expanded', 'false');
+  if (returnToMenu) { toggleMenu(); $('opt-changelog').focus(); }
+}
 
 function applyConfig(cfg) {
   appCfg = { ...appCfg, ...cfg };
@@ -1909,14 +1968,16 @@ function applyConfig(cfg) {
   document.body.style.transform = head ? `translateY(${head}px)` : '';
   viewTop = appCfg.collapsed ? COLLAPSED_TOP : 0;
   canvas.style.top = -viewTop * scale + 'px';
-  if (appCfg.collapsed) { hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList(); }
+  if (appCfg.collapsed) { hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList(); closeChangelog(); }
   syncMenu();
+  if (!changelogEl.hidden) positionChangelog();
 }
 
 function syncMenu() {
   $('share-count-option').hidden = !appCfg.communityAvailable;
   $('opt-share-count').checked = Boolean(appCfg.shareCount);
   $('app-version').textContent = appCfg.version ? `v${appCfg.version}` : '';
+  syncChangelog();
   const update = appCfg.update || { state: 'disabled' };
   const available = ['available', 'downloading', 'ready'].includes(update.state);
   $('update-notice').hidden = !available && update.state !== 'error';
@@ -1945,9 +2006,10 @@ function positionMenu() {
   menuEl.style.left = Math.max(4, Math.min(W * scale - menuEl.offsetWidth - 8, window.innerWidth - menuEl.offsetWidth - 4)) + 'px';
   menuEl.style.top = top + 'px';
 }
-window.addEventListener('resize', () => { if (!menuEl.hidden) positionMenu(); });
+window.addEventListener('resize', () => { if (!menuEl.hidden) positionMenu(); if (!changelogEl.hidden) positionChangelog(); });
 
 function toggleMenu() {
+  closeChangelog();
   if (!menuEl.hidden) { menuEl.hidden = true; return; }
   if (appCfg.collapsed) window.bridge.setOption('collapsed', false);
   hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList();
@@ -1960,6 +2022,8 @@ function toggleMenu() {
 $('opt-ontop').addEventListener('change', (e) => window.bridge.setOption('onTop', e.target.checked));
 $('opt-update').addEventListener('click', () => window.bridge.setOption('update', true));
 $('opt-check-update').addEventListener('click', () => window.bridge.setOption('check-update', true));
+$('opt-changelog').addEventListener('click', openChangelog);
+$('changelog-close').addEventListener('click', () => closeChangelog(true));
 $('opt-share-count').addEventListener('change', (e) => window.bridge.setOption('share-count', e.target.checked));
 $('opt-sound').addEventListener('change', (e) => window.bridge.setOption('muted', !e.target.checked));
 for (const b of document.querySelectorAll('#opt-size button')) b.addEventListener('click', () => window.bridge.setOption('scale', Number(b.dataset.v)));
@@ -1967,7 +2031,10 @@ for (const b of document.querySelectorAll('#opt-place button')) b.addEventListen
 $('opt-roll').addEventListener('click', () => { menuEl.hidden = true; window.bridge.setOption('collapsed', !appCfg.collapsed); });
 $('opt-hide').addEventListener('click', () => { menuEl.hidden = true; window.bridge.setOption('hidden', true); });
 $('opt-quit').addEventListener('click', () => window.bridge.setOption('quit', true));
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') menuEl.hidden = true; });
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!changelogEl.hidden) closeChangelog(true); else menuEl.hidden = true;
+});
 canvas.addEventListener('mousedown', (e) => {
   const p = toInternal(e);
   if (!menuEl.hidden && roofButtonAt(p.x, p.y) !== 'menu') menuEl.hidden = true;
