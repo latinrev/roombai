@@ -493,7 +493,10 @@ window.addEventListener('mousemove', (e) => {
   hoverFurn = target || clutterAt(p.x, p.y) ? null : furnitureAt(p.x, p.y);
   hoverSign = signPart(p.x, p.y);
   const roofHover = roofButtonAt(p.x, p.y);
-  canvas.title = roofHover === 'snooze' ? (appCfg.snoozing ? 'Resume alerts (snoozed indefinitely)' : 'Snooze all alerts indefinitely') : '';
+  const usageHover = roofUsageAt(p.x, p.y);
+  canvas.title = usageHover ? usageTitle(usageHover) : roofRoombaCountAt(p.x, p.y) ? `${allAgents.length} roombas across all rooms`
+    : roofHover === 'ackAll' ? 'Dismiss all finished roombas'
+    : roofHover === 'snooze' ? (appCfg.snoozing ? 'Resume alerts (snoozed indefinitely)' : 'Snooze all alerts indefinitely') : '';
   canvas.style.cursor = roofHover ? 'pointer' : r || hoverTodo || clutterAt(p.x, p.y) ? 'grab' : hoverPlus || hoverSign || hoverGh || hoverCrank || hoverFaceTitle ? 'pointer' : onRoof(p.x, p.y) ? 'move' : 'default';
   if (!pinned) {
     if (target) showTip(target, false);
@@ -1108,7 +1111,8 @@ function skyColors() {
 function signGeom() {
   const label = signLabel();
   const w = Math.max(pixelTextWidth(label), ...roomList.map((entry) => pixelTextWidth(signLabel(entry.name)))) + 8;
-  const x = Math.round(W / 2 - w / 2);
+  const count = roombaCountGeom();
+  const x = Math.round((count.x + count.w + 12 + ROOF_USAGE.claude.x - 12) / 2 - w / 2);
   return { label, x, w, lx: x - 9, rx: x + w + 2 };
 }
 function signLabel(name = room ? room.name : 'ROOMBAI') {
@@ -1124,6 +1128,8 @@ function drawRoof() {
   drawSiren();
   drawMessGauge();
   drawRoofButtons();
+  drawRoombaCount();
+  drawRoofUsage();
 
   // the sign doubles as the room selector: < NAME >
   const g = signGeom();
@@ -1970,6 +1976,73 @@ canvas.addEventListener('mousedown', (e) => {
 // roof buttons live where the grip dots used to be, on the right end of the roof
 const ROOF_BTNS = { snooze: W - 37, roll: W - 26, menu: W - 15 };
 const ACK_BTN_X = 46; // "acknowledge all", just right of the mess gauge
+const ROOF_USAGE = { claude: { x: 228, w: 47, color: '#f0a37e' }, codex: { x: 278, w: 43, color: '#3ddc84' } };
+
+function roombaCountGeom(count = allAgents.length) {
+  const label = String(count);
+  return { x: ACK_BTN_X + 12, w: pixelTextWidth(label) + 12, label };
+}
+
+function roofRoombaCountAt(x, y) {
+  const count = roombaCountGeom();
+  return y >= ROOF_Y + 1 && y <= ROOF_Y + 9 && x >= count.x && x < count.x + count.w;
+}
+
+function drawRoombaCount() {
+  const count = roombaCountGeom();
+  rect(count.x, ROOF_Y + 1, count.w, 8, '#2b2233');
+  // A tiny roomba silhouette identifies the total without crowding the roof.
+  rect(count.x + 3, ROOF_Y + 2, 4, 1, '#adb5bd');
+  rect(count.x + 2, ROOF_Y + 3, 6, 3, '#adb5bd');
+  rect(count.x + 3, ROOF_Y + 6, 4, 1, '#adb5bd');
+  rect(count.x + 4, ROOF_Y + 3, 2, 1, '#6ff3ff');
+  pixelText(ctx, count.label, count.x + 10, ROOF_Y + 2, '#ffd166');
+}
+
+function roofUsageAt(x, y) {
+  if (y < ROOF_Y + 1 || y > ROOF_Y + 9) return null;
+  for (const [provider, box] of Object.entries(ROOF_USAGE)) if (x >= box.x && x < box.x + box.w) return provider;
+  return null;
+}
+
+function usageWindows(provider) {
+  return (appCfg.usage?.[provider]?.windows || []).filter(window => !window.resetsAt || window.resetsAt > Date.now());
+}
+
+function remainingPercent(window) {
+  return clamp(100 - window.usedPercent, 0, 100);
+}
+
+function usageTitle(provider) {
+  const usage = appCfg.usage?.[provider];
+  const lines = [`${PROVIDER[provider].name} allowance remaining`];
+  for (const window of usageWindows(provider)) {
+    const period = !window.minutes ? 'Allowance' : window.minutes === 10080 ? 'Weekly' : window.minutes === 300 ? '5-hour' : `${Math.round(window.minutes / 60)}-hour`;
+    lines.push(`${period}: ${Math.round(remainingPercent(window))}% left${window.resetsAt ? ` · resets ${new Date(window.resetsAt).toLocaleString()}` : ''}`);
+  }
+  if (usage?.state === 'stale') lines.push('Last known allowance; waiting for an update.');
+  if (usage?.message) lines.push(usage.message);
+  else if (!usageWindows(provider).length) lines.push('Waiting for usage data.');
+  if (usage?.updatedAt) lines.push(`Updated ${new Date(usage.updatedAt).toLocaleTimeString()}`);
+  return lines.join('\n');
+}
+
+function drawRoofUsage() {
+  for (const [provider, box] of Object.entries(ROOF_USAGE)) {
+    const usage = appCfg.usage?.[provider];
+    const window = usageWindows(provider)[0];
+    const stale = usage?.state === 'stale';
+    const remaining = window ? remainingPercent(window) : null;
+    const percent = window ? `${Math.round(remaining)}%` : '--';
+    const label = `${PROVIDER[provider].name} ${percent}`;
+    rect(box.x, ROOF_Y + 1, box.w, 8, '#2b2233');
+    const color = !window || stale ? '#adb5bd' : remaining <= 10 ? '#ff6b6b' : remaining <= 25 ? '#ffd166' : box.color;
+    pixelText(ctx, label, box.x + 2, ROOF_Y + 2, color);
+    rect(box.x + 2, ROOF_Y + 8, box.w - 4, 1, '#4a3544');
+    if (window) rect(box.x + 2, ROOF_Y + 8, Math.round((box.w - 4) * remaining / 100), 1, color);
+  }
+}
+
 function roofButtonAt(x, y) {
   if (['available', 'downloading', 'ready'].includes(appCfg.update?.state)) {
     const by = appCfg.collapsed ? ROOF_Y - 1 : ROOF_Y - 5;

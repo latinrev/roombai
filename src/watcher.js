@@ -144,6 +144,7 @@ class Watcher extends EventEmitter {
   onCodex(st, file, j) {
     const p = j.payload || {};
     const ts = Date.parse(j.timestamp) || Date.now();
+    if (j.type === 'event_msg' && p.type === 'token_count' && p.rate_limits) this.emit('usage', 'codex', p.rate_limits, ts);
     if (j.type === 'session_meta') {
       const a = this.agentFor(st, file, 'codex', 'codex:' + (p.id || p.session_id));
       a.project = path.basename(p.cwd || '') || a.project;

@@ -23,8 +23,12 @@ Roombai turns your running coding agents into little robot vacuums in an always-
 - **Keep work in view.** A rotating whiteboard holds tasks, GitHub issues, and pull requests.
 - **Tidy up while you wait.** Move roombas around, scrub furniture, pick up laundry, and send idle agents to recharge.
 - **Make yourself at home.** Move the room between displays, change its size, mute alerts, or roll it up into its roof.
+- **Watch your allowances.** Claude and Codex percentages remaining sit beside Snooze in the roof bar, including when the room is rolled up. Hover for the allowance left in each usage window and its reset time.
+- **Count your roombas.** The total across all rooms appears beside the dismiss button and updates as agents arrive or leave.
 
 Roombai watches your agents. It does not submit prompts or run tasks on their behalf.
+
+Account usage uses your existing Claude Code or Codex local sign-in to read the providers' usage endpoints every five minutes; Codex transcript updates also refresh its indicator. The bar shows the percentage left in the shortest available allowance window, with weekly details on hover. The meters shrink as the allowance is used, turning yellow at 25% left and red at 10% left. A dash means usage is unavailable; last known values are muted while a check fails. API-key sign-ins do not expose subscription allowances. Credentials stay in the main process and are never sent to the renderer or stored by Roombai.
 
 ## Get started
 

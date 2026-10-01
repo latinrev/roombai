@@ -13,6 +13,7 @@ let tray;
 let watcher;
 let updates;
 let community;
+let usage;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
@@ -31,7 +32,7 @@ function loadPos() {
   } catch {}
 }
 function savePos() { fs.writeFile(posFile(), JSON.stringify({ pos, settings }), () => {}); }
-function config() { return { version: app.getVersion(), update: updates?.status(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, snoozing: settings.snoozing, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
+function config() { return { version: app.getVersion(), update: updates?.status(), usage: usage?.snapshot(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, snoozing: settings.snoozing, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
 function sendConfig() { if (win && !win.isDestroyed()) win.webContents.send('config', config()); }
 const lastStatus = new Map();
 
@@ -211,8 +212,21 @@ app.whenReady().then(() => {
   });
   buildTray();
   updates.start();
+  let usageConfigPending = false;
+  usage = require('./usage').createUsage({
+    onChange: () => {
+      // A discovery scan can read many older quota records in one pass.
+      if (usageConfigPending) return;
+      usageConfigPending = true;
+      setImmediate(() => { usageConfigPending = false; sendConfig(); });
+    },
+    demo: process.argv.includes('--demo'),
+    disabled: Boolean(process.env.ROOM_SHOT),
+  });
+  usage.start();
   watcher = new Watcher({ demo: process.argv.includes('--demo') });
   watcher.on('agents', onAgents);
+  watcher.on('usage', (provider, data, timestamp) => { if (!process.argv.includes('--demo') && !process.env.ROOM_SHOT) usage.record(provider, data, timestamp); });
   watcher.start();
   community = require('./community').createCommunity({
     app, enabled: settings.shareCount,
@@ -299,4 +313,4 @@ function jumpTo(a) {
 }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (watcher) watcher.stop(); });
+app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (watcher) watcher.stop(); });

@@ -72,6 +72,7 @@
 
   let muted = true;
   let collapsed = false;
+  let snoozing = false;
   const tellParent = (data) => { if (window.parent !== window) window.parent.postMessage(data, window.location.origin); };
   window.addEventListener('message', (e) => {
     if (e.source !== window.parent || e.origin !== window.location.origin) return;
@@ -84,7 +85,11 @@
     const dpr = window.devicePixelRatio || 1;
     const raw = window.innerWidth / 360;
     const fit = raw >= 1 ? Math.floor(raw * dpr) / dpr : raw; // shrink below 1x on phones
-    return { version: document.querySelector('meta[name="roombai-version"]')?.content, scale: fit, muted, collapsed, onTop: true, anchor: 'free', size: 3 };
+    const usage = {
+      claude: { state: 'ready', windows: [{ minutes: 300, usedPercent: 28, resetsAt: now + 2 * 3600e3 }, { minutes: 10080, usedPercent: 43 }], updatedAt: now, message: 'Demo usage.' },
+      codex: { state: 'ready', windows: [{ minutes: 300, usedPercent: 62, resetsAt: now + 3600e3 }, { minutes: 10080, usedPercent: 37 }], updatedAt: now, message: 'Demo usage.' },
+    };
+    return { version: document.querySelector('meta[name="roombai-version"]')?.content, usage, scale: fit, muted, snoozing, collapsed, onTop: true, anchor: 'free', size: 3 };
   };
 
   window.bridge = {
@@ -97,6 +102,7 @@
     dragEnd() { tellParent({ roombaDrag: 'end' }); },
     setOption(key, value) {
       if (key === 'muted') muted = Boolean(value);
+      if (key === 'snoozing') snoozing = Boolean(value);
       if (key === 'collapsed') { collapsed = Boolean(value); tellParent({ roombaCollapsed: collapsed }); }
       if (listeners.config) listeners.config(cfg());
     },
