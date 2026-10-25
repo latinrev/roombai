@@ -1,19 +1,27 @@
 // Read-only polling of remote T3 Code servers. Each remote thread becomes an agent record
-// shaped like the local ones, so the Watcher's status rules, ack and hide apply unchanged.
+// that carries T3's own status, so the Watcher's ack and hide apply but its transcript rules don't.
 const { newAgent, firstLine, RECENT_FILE_MS } = require('./watcher');
 
 const POLL_MS = 10e3;
 const TIMEOUT_MS = 8e3;
 const PROTOCOL = 2;
 
-// T3 thread status -> what the room should show. A blocking pending request beats every row.
-const STATUS = {
-  running: 'working', starting: 'working', preparing: 'working', queued: 'working',
-  waiting: 'working', // waiting on its own subagents, not on you
-  completed: 'done',
-  failed: 'stuck',
-  idle: 'idle', interrupted: 'idle', cancelled: 'idle', rolled_back: 'idle',
-};
+// Run status -> room status, after pending requests. idle, queued, interrupted, cancelled and
+// rolled_back have no awareness phase in T3, so they fall through to idle.
+const RUN_STATUS = { preparing: 'working', starting: 'working', running: 'working', waiting: 'working', failed: 'stuck' };
+const LIVE_RUN = new Set(['preparing', 'starting', 'running']);
+const HOLDS_COMPLETION = new Set(['subagent', 'monitor', 'background_task']);
+
+// Mirrors T3's resolveThreadAwarenessPhaseV2 and backgroundWorkHoldsCompletion
+// (packages/shared/src/agentAwareness.ts), with both waiting phases shown as waiting.
+function remoteStatusOf(thread) {
+  const run = thread.activityRunStatus ?? thread.status;
+  const request = thread.pendingRuntimeRequest;
+  if (request?.kind === 'user_input' && (request.blocking !== false || !LIVE_RUN.has(run))) return 'waiting';
+  if (request && request.kind !== 'user_input' && request.kind !== 'auth_refresh') return 'waiting';
+  if (run === 'completed') return (thread.pendingBackgroundTasks || []).some((task) => HOLDS_COMPLETION.has(task.kind)) ? 'working' : 'done';
+  return RUN_STATUS[run] || 'idle';
+}
 
 const time = (value) => Date.parse(value || '') || 0;
 
@@ -24,47 +32,41 @@ function providerOf(thread) {
   return 'custom';
 }
 
-function kindOf(thread) {
-  const request = thread.pendingRuntimeRequest;
-  if (request && request.blocking !== false) return 'waiting';
-  return STATUS[thread.status] || 'idle';
-}
-
 // server: { environmentId, label }. prev: a Map-like of agents from earlier polls (id -> agent).
 function agentsFromShell(shell, server, now, prev = new Map()) {
   const projects = new Map((shell?.projects || []).map((p) => [p.id, p.title || '']));
   const out = [];
   for (const t of shell?.threads || []) {
     if (!t?.id || t.archivedAt || t.deletedAt || t.lineage?.parentThreadId) continue;
-    const kind = kindOf(t);
+    const status = remoteStatusOf(t);
     const updatedAt = time(t.updatedAt) || time(t.createdAt);
-    const active = kind === 'working' || kind === 'waiting';
-    if (!active && now - updatedAt > RECENT_FILE_MS) continue;
+    if (status !== 'working' && status !== 'waiting' && now - updatedAt > RECENT_FILE_MS) continue;
 
     const id = `t3:${server.environmentId}:${t.id}`;
     const before = prev.get(id);
     const runId = t.latestRunId || '';
-    const newRun = Boolean(before && runId && before.runId !== runId);
+    // Idle compaction starts a silent run: it must not undo an ack or count as a turn.
+    const silent = t.latestRunSilent === true;
+    const newRun = Boolean(before && runId && before.runId !== runId && !silent);
+    const keep = before && !newRun;
     const a = newAgent(id, providerOf(t));
     Object.assign(a, {
       host: 't3code',
       machine: server.label,
       title: firstLine(t.title, 60),
       project: projects.get(t.projectId) || '',
-      // T3 knows the run is alive, so a long tool call never trips the local silence heuristic.
-      lastEventAt: kind === 'working' ? Math.max(updatedAt, now) : updatedAt,
+      remoteStatus: status,
+      lastEventAt: updatedAt,
+      turnStartedAt: time(t.activityRunStartedAt) || time(t.latestRunStartedAt) || updatedAt,
+      completedAt: silent ? before?.completedAt || 0 : status === 'done' ? time(t.latestRunCompletedAt) || updatedAt : 0,
+      error: status === 'stuck' ? firstLine(t.lastError || 'failed', 140) : '',
       lastMessage: firstLine(t.latestVisibleMessage?.text, 220),
       toolCalls: t.itemCount || 0,
       runId,
-      turns: before ? before.turns + (newRun ? 1 : 0) : runId ? 1 : 0,
-      acked: before && !newRun ? before.acked : false,
-      hidden: before && !newRun ? before.hidden : false,
+      turns: before ? before.turns + (newRun ? 1 : 0) : runId && !silent ? 1 : 0,
+      acked: keep ? before.acked : false,
+      hidden: keep ? before.hidden : false,
     });
-    const startedAt = time(t.latestRunStartedAt) || time(t.activityRunStartedAt) || updatedAt;
-    if (kind === 'working') Object.assign(a, { turnOpen: true, turnStartedAt: startedAt });
-    else if (kind === 'waiting') Object.assign(a, { turnOpen: true, turnStartedAt: startedAt, hookWaitingAt: time(t.pendingRuntimeRequest.createdAt) || now });
-    else if (kind === 'stuck') Object.assign(a, { turnOpen: true, turnStartedAt: startedAt, error: firstLine(t.lastError || 'failed', 140) });
-    else if (kind === 'done') a.completedAt = time(t.latestRunCompletedAt) || updatedAt;
     out.push(a);
   }
   return out;

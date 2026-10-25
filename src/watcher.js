@@ -42,6 +42,7 @@ function newAgent(id, provider) {
     acked: false,
     hidden: false,
     manualStatus: null,
+    remoteStatus: null, // set by a remote server that reports status itself; skips the transcript rules
     lastAssistantTextAt: 0,
   };
 }
@@ -247,6 +248,8 @@ class Watcher extends EventEmitter {
 
   // ---------- status ----------
   statusOf(a, now) {
+    if (a.remoteStatus === 'done') return !a.acked && now - a.completedAt < DONE_FRESH_MS ? 'done' : 'idle';
+    if (a.remoteStatus) return a.remoteStatus;
     if (a.manualStatus) return a.manualStatus;
     // Claude: an assistant text reply followed by silence means the turn ended.
     if (a.provider === 'claude' && a.turnOpen && a.lastAssistantTextAt && a.pending.size === 0 &&

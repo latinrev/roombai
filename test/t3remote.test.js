@@ -59,13 +59,14 @@ async function t3Server(t, { shell = fixture, protocol = 2, shellStatus = 200 } 
   return state;
 }
 
-function connect(t, server, token = TOKEN) {
+function connect(t, server, { token = TOKEN, now } = {}) {
   const watcher = new Watcher();
-  const remote = createT3Remote({ servers: [{ url: server.url, token }], prev: watcher.agents,
+  const remote = createT3Remote({ servers: [{ url: server.url, token }], prev: watcher.agents, now,
     onAgents: (source, list) => watcher.setRemoteAgents(source, list) });
   t.after(() => remote.stop());
   const room = () => watcher.snapshot().map(({ id, status, title, project, machine, provider }) => ({ id, status, title, project, machine, provider }));
-  return { watcher, remote, room };
+  const statuses = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status]);
+  return { watcher, remote, room, statuses };
 }
 
 test('remote threads become roombas with the right status, project and machine', async (t) => {
@@ -99,7 +100,7 @@ test('a thread that disappears leaves the room, and an ack survives the next pol
 
 test('a rejected token reports unauthorized without the token text, and keeps the last good roombas', async (t) => {
   const server = await t3Server(t);
-  const { remote, room } = connect(t, server, 'wrong-' + TOKEN);
+  const { remote, room } = connect(t, server, { token: 'wrong-' + TOKEN });
   await remote.refresh();
   const [status] = remote.status();
   assert.equal(status.state, 'unauthorized');
@@ -138,4 +139,56 @@ test('an unreachable server reports unreachable', async (t) => {
   await remote.refresh();
   assert.equal(remote.status()[0].state, 'unreachable');
   assert.ok(remote.status()[0].error.length > 0);
+});
+
+test('remote status follows T3 awareness phases, not transcript timing', async (t) => {
+  const userInput = (blocking) => ({ id: 'q1', kind: 'user_input', blocking, createdAt: iso(10e3) });
+  const server = await t3Server(t, { shell: () => ({ projects: fixture().projects, threads: [
+    thread('a-live-run', { status: 'completed', activityRunStatus: 'running', activityRunStartedAt: iso(20e3) }),
+    thread('b-ask-after-run', { status: 'completed', pendingRuntimeRequest: userInput(false) }),
+    thread('c-ask-during-run', { status: 'running', pendingRuntimeRequest: userInput(false) }),
+    thread('d-ask-blocking', { status: 'running', pendingRuntimeRequest: userInput(true) }),
+    thread('e-permission', { status: 'running', pendingRuntimeRequest: { id: 'p1', kind: 'permission', createdAt: iso(10e3) } }),
+    thread('f-auth-refresh', { status: 'running', pendingRuntimeRequest: { id: 'r1', kind: 'auth_refresh', createdAt: iso(10e3) } }),
+    thread('g-subagent', { status: 'completed', pendingBackgroundTasks: [{ id: 'b1', kind: 'subagent' }] }),
+    thread('h-command', { status: 'completed', pendingBackgroundTasks: [{ id: 'b2', kind: 'command' }] }),
+    thread('i-starting', { status: 'starting' }),
+    thread('j-queued', { status: 'queued' }),
+    thread('k-interrupted', { status: 'interrupted' }),
+    thread('l-quiet-run', { status: 'running', updatedAt: iso(20 * 60e3), latestRunStartedAt: iso(25 * 60e3) }),
+  ] }) });
+  const { watcher, remote, statuses } = connect(t, server);
+  await remote.refresh();
+  assert.deepEqual(statuses(), [
+    ['a-live-run', 'working'], ['b-ask-after-run', 'waiting'], ['c-ask-during-run', 'working'], ['d-ask-blocking', 'waiting'],
+    ['e-permission', 'waiting'], ['f-auth-refresh', 'working'], ['g-subagent', 'working'], ['h-command', 'done'],
+    ['i-starting', 'working'], ['j-queued', 'idle'], ['k-interrupted', 'idle'], ['l-quiet-run', 'working'],
+  ]);
+  const live = watcher.snapshot().find((a) => a.id === 't3:env-1:a-live-run');
+  assert.ok(Math.abs(live.since - (Date.now() - 20e3)) < 5e3, 'since is the activity run start');
+});
+
+test('a silent compaction run keeps the ack, the hide, the finish time and the turn count', async (t) => {
+  const finished = iso(5 * 60e3);
+  const server = await t3Server(t, { shell: () => ({ projects: fixture().projects, threads: [
+    thread('fresh', { status: 'completed', latestRunCompletedAt: finished }),
+    thread('seen', { status: 'completed', latestRunCompletedAt: finished }),
+    thread('tucked', { status: 'completed', latestRunCompletedAt: finished }),
+  ] }) });
+  const { watcher, remote } = connect(t, server);
+  const room = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status, a.turns, a.since]);
+  await remote.refresh();
+  watcher.ack('t3:env-1:seen');
+  watcher.hide('t3:env-1:tucked');
+  assert.deepEqual(room().map((a) => a.slice(0, 3)), [['fresh', 'done', 1], ['seen', 'idle', 1]]);
+
+  const compacted = (id, fields = {}) => thread(id, { status: 'completed', latestRunId: `compact-${id}`, latestRunSilent: true, latestRunCompletedAt: iso(1e3), ...fields });
+  server.shell = () => ({ projects: fixture().projects, threads: ['fresh', 'seen', 'tucked'].map((id) => compacted(id)) });
+  await remote.refresh();
+  assert.deepEqual(room().map((a) => a.slice(0, 3)), [['fresh', 'done', 1], ['seen', 'idle', 1]], 'ack and hide survive, no new turn');
+  assert.equal(room()[0][3], Date.parse(finished), 'done keeps the real run finish time');
+
+  server.shell = () => ({ projects: fixture().projects, threads: [thread('seen', { status: 'running', latestRunId: 'run-2' })] });
+  await remote.refresh();
+  assert.deepEqual(room().map((a) => a.slice(0, 3)), [['seen', 'working', 2]], 'a real run clears the ack and counts');
 });
