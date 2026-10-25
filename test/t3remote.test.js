@@ -32,7 +32,8 @@ function fixture() {
       thread('done', { status: 'completed', title: 'Fix watering timer', latestRunCompletedAt: iso(5 * 60e3) }),
       thread('fail', { status: 'failed', title: 'Deploy preview', lastError: 'provider exited' }),
       thread('old', { status: 'idle', title: 'Old idea', updatedAt: iso(13 * 3600e3) }),
-      thread('child', { status: 'running', title: 'Delegated review', lineage: { parentThreadId: 'run', relationshipToParent: 'delegate', rootThreadId: 'run' } }),
+      thread('child', { status: 'running', title: 'Delegated review', lineage: { parentThreadId: 'run', relationshipToParent: 'subagent', rootThreadId: 'run' } }),
+      thread('fork', { status: 'running', title: 'Try another layout', lineage: { parentThreadId: 'done', relationshipToParent: 'fork', rootThreadId: 'done' } }),
       thread('gone', { status: 'running', title: 'Archived work', archivedAt: iso(10e3) }),
     ],
     archivedThreads: [thread('arch', { status: 'completed', archivedAt: iso(10e3) })],
@@ -64,7 +65,7 @@ async function t3Server(t, { shell = fixture, protocol = 2, shellStatus = 200 } 
 
 function connect(t, server, { token = TOKEN, now } = {}) {
   const watcher = new Watcher();
-  const remote = createT3Remote({ servers: [{ url: server.url, token }], recall: (id) => watcher.recall(id), now,
+  const remote = createT3Remote({ servers: [{ url: server.url, token }], recall: (id, at) => watcher.recall(id, at), now,
     onAgents: (source, list) => watcher.setRemoteAgents(source, list, now?.()) });
   t.after(() => remote.stop());
   const room = () => watcher.snapshot().map(({ id, status, title, project, machine, provider }) => ({ id, status, title, project, machine, provider }));
@@ -80,6 +81,7 @@ test('remote threads become roombas with the right status, project and machine',
     { id: 't3:env-1:ask', status: 'waiting', title: 'Approve migration', project: 'billing', machine: 'build-box', provider: 'claude' },
     { id: 't3:env-1:done', status: 'done', title: 'Fix watering timer', project: 'garden-app', machine: 'build-box', provider: 'claude' },
     { id: 't3:env-1:fail', status: 'stuck', title: 'Deploy preview', project: 'garden-app', machine: 'build-box', provider: 'claude' },
+    { id: 't3:env-1:fork', status: 'working', title: 'Try another layout', project: 'garden-app', machine: 'build-box', provider: 'claude' },
     { id: 't3:env-1:run', status: 'working', title: 'Add seed catalog', project: 'garden-app', machine: 'build-box', provider: 'codex' },
   ]);
   assert.deepEqual(remote.status(), [{ url: server.url, label: 'build-box', state: 'ok', error: '' }]);
@@ -95,7 +97,7 @@ test('a thread that disappears leaves the room, and an ack survives the next pol
   watcher.ack('t3:env-1:done');
   server.shell = () => ({ ...fixture(), threads: fixture().threads.filter((t) => t.id !== 'run') });
   await remote.refresh();
-  assert.deepEqual(room().map((a) => [a.id, a.status]), [['t3:env-1:ask', 'waiting'], ['t3:env-1:done', 'idle'], ['t3:env-1:fail', 'stuck']]);
+  assert.deepEqual(room().map((a) => [a.id, a.status]), [['t3:env-1:ask', 'waiting'], ['t3:env-1:done', 'idle'], ['t3:env-1:fail', 'stuck'], ['t3:env-1:fork', 'working']]);
   server.shell = () => ({ ...fixture(), threads: [thread('done', { status: 'running', title: 'Fix watering timer', latestRunId: 'run-2' })] });
   await remote.refresh();
   assert.deepEqual(room().map((a) => [a.id, a.status]), [['t3:env-1:done', 'working']], 'a new run clears the ack');
@@ -117,7 +119,7 @@ test('a rejected token reports unauthorized without the token text, and keeps th
   good.shellStatus = 500;
   await ok.remote.refresh();
   assert.equal(ok.remote.status()[0].state, 'unreachable');
-  assert.equal(ok.room().length, 4, 'last good poll stays in the room');
+  assert.equal(ok.room().length, 5, 'last good poll stays in the room');
 });
 
 test('protocol 3 or a 426 reports incompatible', async (t) => {
@@ -268,6 +270,24 @@ test('an ack, a hide and the turn count survive an outage that empties the room'
   assert.deepEqual(room(), [['fresh', 'working', 2], ['seen', 'working', 2], ['tucked', 'working', 2]], 'a new run resets them');
 });
 
+test('a server back after more than 12 hours starts its roombas fresh', async (t) => {
+  let clock = Date.now();
+  const server = await t3Server(t, { shell: () => ({ projects: fixture().projects, threads: [thread('long', { status: 'running' })] }) });
+  const { watcher, remote } = connect(t, server, { now: () => clock });
+  const room = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status, a.turns]);
+  await remote.refresh();
+  watcher.hide('t3:env-1:long');
+  assert.deepEqual(room(), []);
+
+  server.shellStatus = 500;
+  clock += 31e3;
+  await remote.refresh();
+  server.shellStatus = 200;
+  clock += 13 * 3600e3;
+  await remote.refresh();
+  assert.deepEqual(room(), [['long', 'working', 1]], 'the hide from before the outage is forgotten');
+});
+
 // Stands in for Electron's safeStorage: "enc:" ciphertext, and a token named "boom" fails to encrypt.
 const safeStorage = {
   isEncryptionAvailable: () => true,
@@ -376,13 +396,13 @@ test('t3-servers.json: a reload with broken JSON keeps the running servers and s
   const room = () => watcher.snapshot().map((a) => a.id.replace('t3:env-1:', ''));
   servers.reload();
   await servers.refresh();
-  assert.deepEqual(room(), ['ask', 'done', 'fail', 'run']);
+  assert.deepEqual(room(), ['ask', 'done', 'fail', 'fork', 'run']);
 
   fs.writeFileSync(file, '[{ "url": ');
   servers.reload();
   assert.deepEqual(servers.problems(), [{ label: 't3-servers.json', reason: 'invalid JSON' }]);
   await servers.refresh();
-  assert.deepEqual(room(), ['ask', 'done', 'fail', 'run'], 'a half-saved file keeps the roombas');
+  assert.deepEqual(room(), ['ask', 'done', 'fail', 'fork', 'run'], 'a half-saved file keeps the roombas');
   assert.deepEqual(servers.status().map((s) => s.state), ['ok']);
 
   fs.writeFileSync(file, '[]');

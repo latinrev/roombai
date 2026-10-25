@@ -333,8 +333,10 @@ class Watcher extends EventEmitter {
     this.publish();
   }
 
-  // The last record of a remote agent, in the room or departed.
-  recall(id) {
+  // The last record of a remote agent, in the room or departed within RECENT_FILE_MS.
+  recall(id, now = Date.now()) {
+    const gone = this.departed.get(id);
+    if (gone && now - gone.departedAt > RECENT_FILE_MS) this.departed.delete(id);
     return this.agents.get(id) || this.departed.get(id);
   }
 

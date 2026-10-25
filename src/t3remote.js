@@ -50,18 +50,18 @@ function providerOf(thread) {
   return 'custom';
 }
 
-// server: { environmentId, label }. recall(id): that agent's record from earlier polls, if any.
+// server: { environmentId, label }. recall(id, now): that agent's record from earlier polls, if any.
 function agentsFromShell(shell, server, now, recall = () => undefined) {
   const projects = new Map((shell?.projects || []).map((p) => [p.id, p.title || '']));
   const out = [];
   for (const t of shell?.threads || []) {
-    if (!t?.id || t.archivedAt || t.deletedAt || t.lineage?.parentThreadId) continue;
+    if (!t?.id || t.archivedAt || t.deletedAt || t.lineage?.relationshipToParent === 'subagent') continue;
     const status = remoteStatusOf(t);
     const updatedAt = time(t.updatedAt) || time(t.createdAt);
     if (status !== 'working' && status !== 'waiting' && now - updatedAt > RECENT_FILE_MS) continue;
 
     const id = `t3:${server.environmentId}:${t.id}`;
-    const before = recall(id);
+    const before = recall(id, now);
     const runId = t.latestRunId || '';
     // Idle compaction starts a silent run: it must not undo an ack or count as a turn.
     const silent = t.latestRunSilent === true;
@@ -273,7 +273,7 @@ function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, 
       const urls = new Set(servers.map((s) => trimUrl(s.url)));
       for (const s of old?.status() || []) if (!urls.has(s.url)) watcher.setRemoteAgents(s.url, []);
       key = JSON.stringify(servers);
-      remote = createT3Remote({ servers, fetch, now, recall: (id) => watcher.recall(id),
+      remote = createT3Remote({ servers, fetch, now, recall: (id, at) => watcher.recall(id, at),
         onAgents: (source, list) => watcher.setRemoteAgents(source, list), onStatus });
       remote.start();
     }
