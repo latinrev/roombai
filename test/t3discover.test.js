@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const { discoverT3 } = require('../src/t3discover');
+const { guessCandidates, pairT3 } = require('../src/t3pair');
 
 async function listen(t, handler) {
   const server = http.createServer(handler);
@@ -101,12 +102,14 @@ test('discovery lists each online T3 peer of this user or tagged in their tailne
   const started = Date.now();
   const found = await discoverT3({ clis, exec, fetch, t3Home: dir, timeoutMs: 300 });
   assert.deepEqual(found, { reason: '', servers: [
-    { environmentId: 'env-runner', label: 'ci-runner', url: 'https://ci-runner.tail.ts.net', compatible: true },
-    { environmentId: 'env-linux', label: 'joel-linux', url: 'https://joel-linux.tail.ts.net', compatible: true },
-    { environmentId: 'env-mac', label: 'mac-studio', url: 'http://100.64.0.3:3773', compatible: true },
-    { environmentId: 'env-bad', label: 'odd', url: 'https://odd.tail.ts.net', compatible: true },
-    { environmentId: 'env-old', label: 'old-t3', url: 'https://old-t3.tail.ts.net', compatible: false },
+    { environmentId: 'env-runner', label: 'ci-runner', url: 'https://ci-runner.tail.ts.net', owner: 'tagged', compatible: true },
+    { environmentId: 'env-linux', label: 'joel-linux', url: 'https://joel-linux.tail.ts.net', owner: 'own', compatible: true },
+    { environmentId: 'env-mac', label: 'mac-studio', url: 'http://100.64.0.3:3773', owner: 'own', compatible: true },
+    { environmentId: 'env-bad', label: 'odd', url: 'https://odd.tail.ts.net', owner: 'own', compatible: true },
+    { environmentId: 'env-old', label: 'old-t3', url: 'https://old-t3.tail.ts.net', owner: 'own', compatible: false },
   ] });
+  assert.deepEqual(guessCandidates(found, []), { missing: false,
+    urls: ['https://joel-linux.tail.ts.net', 'http://100.64.0.3:3773', 'https://odd.tail.ts.net'] });
   assert.ok(Date.now() - started < 2e3, 'probes run in parallel and a silent peer times out');
 });
 
@@ -123,7 +126,7 @@ test('without an environment-id file, the server named in server-runtime.json is
 
 test('discovery without Tailscale returns no servers and says why', async (t) => {
   const missing = path.join(tmpDir(t), 'no-tailscale');
-  assert.deepEqual(await discoverT3({ clis: [missing, missing + '-2'], t3Home: '/nonexistent' }), { servers: [], reason: 'Tailscale not found' });
+  assert.deepEqual(await discoverT3({ clis: [missing, missing + '-2'], t3Home: '/nonexistent' }), { servers: [], reason: 'Tailscale not found', missing: true });
 
   const stopped = fakeTailscale(t, { status: { BackendState: 'Stopped', Peer: {} } });
   assert.deepEqual(await discoverT3({ ...stopped, t3Home: '/nonexistent' }), { servers: [], reason: 'Tailscale not running' });
@@ -139,4 +142,24 @@ test('a missing fixed install path falls through to tailscale on PATH', async (t
   const found = await discoverT3({ clis: [path.join(tmpDir(t), 'Tailscale.exe'), 'tailscale'], exec,
     fetch: routed({ 'https://joel-linux.tail.ts.net': linux }), t3Home: '/nonexistent', timeoutMs: 300 });
   assert.deepEqual(found.servers.map((s) => s.label), ['joel-linux']);
+});
+
+test('a bare code is never guessed onto a tagged machine', async (t) => {
+  const runner = await t3(t, 'env-runner', 'ci-runner');
+  const { clis, exec, dir } = fakeTailscale(t, { status: {
+    BackendState: 'Running', MagicDNSSuffix: 'tail.ts.net', Self: { UserID: ME },
+    Peer: { m: peer('ci-runner.tail.ts.net.', '100.64.0.14', true, { UserID: TAGGED, Tags: ['tag:server'] }) },
+  } });
+  const posts = [];
+  const fetch = (url, opts) => {
+    if (opts?.method === 'POST') posts.push(url);
+    return routed({ 'https://ci-runner.tail.ts.net': runner })(url, opts);
+  };
+  const found = await discoverT3({ clis, exec, fetch, t3Home: '/nonexistent', timeoutMs: 300 });
+  assert.deepEqual(found.servers.map((s) => [s.label, s.owner]), [['ci-runner', 'tagged']]);
+  const safeStorage = { isEncryptionAvailable: () => true, encryptString: (text) => Buffer.from(text) };
+  const result = await pairT3({ text: 'K7M2Q9XRT4WZ', file: path.join(dir, 't3-servers.json'), fs, safeStorage, fetch,
+    findCandidates: async () => guessCandidates(found, []) });
+  assert.deepEqual(result, { problem: 'a bare pairing code does not say which server; make the link from its Tailscale address' });
+  assert.deepEqual(posts, [], 'the credential went nowhere');
 });

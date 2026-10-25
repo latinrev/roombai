@@ -5,7 +5,7 @@ const { Watcher, PORT } = require('./watcher');
 const github = require('./github');
 const { createT3Servers, describeServer } = require('./t3remote');
 const { discoverT3 } = require('./t3discover');
-const { pairT3, unconnected } = require('./t3pair');
+const { guessCandidates, pairT3, unconnected } = require('./t3pair');
 
 const SCALE_DEFAULT = 3;
 const ROOM_W = 360; // internal pixel-art resolution
@@ -189,7 +189,7 @@ function t3Lines() {
   }
   for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
   // Without Tailscale and without a configured server, the user is not using remote T3 at all.
-  if (discovery.reason && (discovery.reason !== 'Tailscale not found' || statuses.length)) {
+  if (discovery.reason && (!discovery.missing || statuses.length || t3servers.problems().length)) {
     lines.push({ label: `Finding T3 servers: ${discovery.reason}`, enabled: false });
   }
   for (const d of unconnected(discovery.servers, statuses)) {
@@ -231,9 +231,7 @@ async function pastePairingLink() {
     showPairMessage('Pairing…');
     const findCandidates = async () => {
       await discover();
-      const statuses = t3servers.status();
-      return [...unconnected(discovery.servers, statuses).filter((d) => d.compatible).map((d) => d.url),
-        ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
+      return guessCandidates(discovery, t3servers.status());
     };
     const result = await pairT3({ text, file: t3File(), fs, safeStorage, findCandidates, statuses: t3servers.status() });
     let message = result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`;

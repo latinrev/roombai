@@ -6,6 +6,7 @@ const { PROTOCOL, fetchEnvironment } = require('./t3remote');
 
 const PORT = 3773;
 const PROBE_MS = 1e3;
+const NOT_FOUND = { reason: 'Tailscale not found', missing: true };
 // Apps launched from the macOS Finder get a PATH without Homebrew, so its two prefixes are listed too.
 const FIXED_CLI = {
   win32: ['C:\\Program Files\\Tailscale\\tailscale.exe'],
@@ -24,22 +25,23 @@ function probeUrls(status) {
   const ownTagged = (peer) => peer.Tags?.length > 0 && suffix !== null && peer.DNSName.replace(/\.$/, '').endsWith(suffix);
   for (const peer of Object.values(status?.Peer || {})) {
     if (!peer?.Online || !peer.DNSName || peer.ShareeNode) continue;
-    if (peer.UserID !== status.Self?.UserID && !ownTagged(peer)) continue;
-    urls.push(`https://${peer.DNSName.replace(/\.$/, '')}`);
+    const owner = peer.UserID === status.Self?.UserID ? 'own' : ownTagged(peer) ? 'tagged' : null;
+    if (!owner) continue;
+    urls.push({ url: `https://${peer.DNSName.replace(/\.$/, '')}`, owner });
     const ip4 = (peer.TailscaleIPs || []).find((ip) => /^\d+\.\d+\.\d+\.\d+$/.test(ip));
-    if (ip4) urls.push(`http://${ip4}:${PORT}`);
+    if (ip4) urls.push({ url: `http://${ip4}:${PORT}`, owner });
   }
   return urls;
 }
 
-// hits: [{ url, env }] with env from fetchEnvironment. One server per environmentId, https first.
+// hits: [{ url, owner, env }] with env from fetchEnvironment. One server per environmentId, https first.
 function mergeHits(hits, selfId) {
   const byId = new Map();
-  for (const { url, env } of hits) {
+  for (const { url, owner, env } of hits) {
     if (!env || env.environmentId === selfId) continue;
     const prev = byId.get(env.environmentId);
     if (prev && !(url.startsWith('https:') && !prev.url.startsWith('https:'))) continue;
-    byId.set(env.environmentId, { environmentId: env.environmentId, label: env.label, url, compatible: env.protocol === PROTOCOL });
+    byId.set(env.environmentId, { environmentId: env.environmentId, label: env.label, url, owner, compatible: env.protocol === PROTOCOL });
   }
   return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label) || a.url.localeCompare(b.url));
 }
@@ -47,17 +49,17 @@ function mergeHits(hits, selfId) {
 function runCli(exec, cli) {
   return new Promise((resolve) => {
     exec(cli, ['status', '--json'], { timeout: 8e3, windowsHide: true, maxBuffer: 16e6 }, (err, stdout) => {
-      if (err) return resolve({ reason: err.code === 'ENOENT' ? 'Tailscale not found' : 'Tailscale not running' });
+      if (err) return resolve(err.code === 'ENOENT' ? NOT_FOUND : { reason: 'Tailscale not running' });
       try { resolve({ status: JSON.parse(stdout) }); } catch { resolve({ reason: 'Tailscale status unreadable' }); }
     });
   });
 }
 
 async function tailscaleStatus(exec, clis) {
-  let last = { reason: 'Tailscale not found' };
+  let last = NOT_FOUND;
   for (const cli of clis) {
     last = await runCli(exec, cli);
-    if (last.reason !== 'Tailscale not found') return last;
+    if (!last.missing) return last;
   }
   return last;
 }
@@ -78,13 +80,13 @@ async function selfEnvironmentId(t3Home, fetch, timeoutMs) {
 async function discoverT3({ clis = tailscaleClis(), exec = execFile, fetch = globalThis.fetch, timeoutMs = PROBE_MS,
   t3Home = process.env.T3CODE_HOME || path.join(os.homedir(), '.t3') } = {}) {
   try {
-    const { status, reason } = await tailscaleStatus(exec, clis);
-    if (!status) return { servers: [], reason };
+    const { status, ...why } = await tailscaleStatus(exec, clis);
+    if (!status) return { servers: [], ...why };
     if (status.BackendState && status.BackendState !== 'Running') return { servers: [], reason: 'Tailscale not running' };
-    const urls = probeUrls(status);
+    const probes = probeUrls(status);
     const [selfId, ...answers] = await Promise.all([selfEnvironmentId(t3Home, fetch, timeoutMs),
-      ...urls.map((url) => fetchEnvironment(fetch, url, timeoutMs).catch(() => null))]);
-    return { servers: mergeHits(urls.map((url, i) => ({ url, env: answers[i] })), selfId), reason: '' };
+      ...probes.map(({ url }) => fetchEnvironment(fetch, url, timeoutMs).catch(() => null))]);
+    return { servers: mergeHits(probes.map((probe, i) => ({ ...probe, env: answers[i] })), selfId), reason: '' };
   } catch {
     return { servers: [], reason: 'discovery failed' };
   }

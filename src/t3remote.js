@@ -114,8 +114,8 @@ async function fetchEnvironment(fetch, url, timeoutMs) {
 
 // The token sealed by the OS keychain, '' when this machine cannot encrypt, or null when encrypting failed.
 function sealToken(safeStorage, token) {
-  let available = false;
-  try { available = safeStorage.isEncryptionAvailable(); } catch {}
+  let available;
+  try { available = safeStorage.isEncryptionAvailable(); } catch { return null; }
   if (!available) return '';
   try { return safeStorage.encryptString(token).toString('base64'); } catch { return null; }
 }

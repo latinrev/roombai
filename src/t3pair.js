@@ -1,4 +1,4 @@
-const { HttpError, IncompatibleError, PROTOCOL, fetchEnvironment, redact, sealToken, trimUrl, urlProblem, writeAtomic } = require('./t3remote');
+const { HttpError, IncompatibleError, PROTOCOL, describeServer, fetchEnvironment, redact, sealToken, trimUrl, urlProblem, writeAtomic } = require('./t3remote');
 
 const SCOPE = 'orchestration:read';
 const TIMEOUT_MS = 8e3;
@@ -7,6 +7,7 @@ const OS_NAME = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 // T3 draws codes from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ, so a code typed in lower case can only mean its upper-case form.
 const PAIRING_CODE = /^[2-9A-HJ-NP-Z]{12}$/;
 const NOT_A_LINK = { problem: 'the clipboard does not hold a T3 pairing link' };
+const NOT_SEALED = { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' };
 
 // Every link T3 builds is a /pair page with the credential in the fragment (older ones in ?token=).
 // A hosted app.t3.codes link names the server in ?host=; a direct link is the server itself.
@@ -31,14 +32,16 @@ function parsePairingLink(text) {
 
 const isLoopback = (host) => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/.test(new URL(host).hostname);
 
-// findCandidates resolves to the URLs of servers found on the tailnet but not connected, or asking
-// for a reconnect. A link made on the server itself says localhost, so it can only mean the one
-// candidate. That is a guess: the link may have come from a machine Roombai never found.
+// findCandidates resolves to { urls, missing }: the servers a link without a usable host can mean,
+// and whether Tailscale is missing. A link made on the server itself says localhost, so it can only
+// mean the one candidate. That is a guess: the link may have come from a machine Roombai never found.
 async function resolveHost(host, findCandidates) {
   if (host && !isLoopback(host)) return { url: host, guessed: false };
-  const candidates = await findCandidates();
-  if (candidates.length === 1) return { url: candidates[0], guessed: true };
+  let found;
+  try { found = await findCandidates(); } catch { return { problem: 'discovery failed; paste the full link' }; }
+  if (found.urls.length === 1) return { url: found.urls[0], guessed: true };
   const where = host ? 'the link points at the server\'s own machine' : 'a bare pairing code does not say which server';
+  if (found.missing) return { problem: `${where} and Tailscale is not installed to find it; paste the full link` };
   return { problem: `${where}; make the link from its Tailscale address` };
 }
 
@@ -79,7 +82,7 @@ async function exchange({ url, guessed, credential, fetch, platform }) {
 
 // Turns a pasted pairing link into a read-only entry in t3-servers.json, with the token sealed when
 // safeStorage can encrypt. statuses: the configured servers, so a re-pair replaces their old entry.
-async function pairT3({ text, file, fs, safeStorage, findCandidates = async () => [], statuses = [], fetch = globalThis.fetch,
+async function pairT3({ text, file, fs, safeStorage, findCandidates = async () => ({ urls: [] }), statuses = [], fetch = globalThis.fetch,
   now = Date.now, platform = process.platform }) {
   const parsed = parsePairingLink(text);
   if (parsed.problem) return { problem: parsed.problem };
@@ -94,6 +97,7 @@ async function pairT3({ text, file, fs, safeStorage, findCandidates = async () =
     // Checked before the credential is spent; save() reads the file again for the write.
     const early = readList(fs, file);
     if (early.problem) return { problem: early.problem };
+    if (sealToken(safeStorage, 'probe') === null) return NOT_SEALED;
 
     let env;
     try { env = await fetchEnvironment(fetch, url, TIMEOUT_MS); } catch (err) {
@@ -115,7 +119,7 @@ async function pairT3({ text, file, fs, safeStorage, findCandidates = async () =
 // Synchronous from read to rename, so an entry another pairing or a hand edit added meanwhile stays.
 function save({ file, fs, safeStorage, statuses, url, env, token, expiresAt }) {
   const tokenEnc = sealToken(safeStorage, token);
-  if (tokenEnc === null) return { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' };
+  if (tokenEnc === null) return NOT_SEALED;
   const saved = readList(fs, file);
   if (saved.problem) return { problem: 't3-servers.json became unreadable while pairing; fix it, then pair again with a new link' };
   const replaced = new Set([url, ...statuses.filter((s) => s.environmentId === env.environmentId).map((s) => trimUrl(s.url))]);
@@ -130,4 +134,12 @@ function save({ file, fs, safeStorage, statuses, url, env, token, expiresAt }) {
 const unconnected = (discovered, statuses) =>
   discovered.filter((d) => !statuses.some((s) => s.environmentId === d.environmentId || trimUrl(s.url) === d.url));
 
-module.exports = { pairT3, parsePairingLink, unconnected };
+// What findCandidates hands resolveHost. A tagged machine may serve the whole tailnet, so only the
+// user's own machines are guessed.
+const guessCandidates = (discovery, statuses) => ({
+  urls: [...unconnected(discovery.servers, statuses).filter((d) => d.compatible && d.owner === 'own').map((d) => d.url),
+    ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)],
+  missing: !!discovery.missing,
+});
+
+module.exports = { guessCandidates, pairT3, parsePairingLink, unconnected };

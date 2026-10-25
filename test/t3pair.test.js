@@ -111,13 +111,17 @@ test('a link made on the server itself pairs with the one server found on the ta
   const fetch = routed({ [BOX]: server.local });
   const file = configFile(t);
   const local = `http://localhost:3773/pair#token=${CRED}`;
-  assert.deepEqual(await pairT3({ text: local, file, fs, fetch, findCandidates: async () => [] }),
+  assert.deepEqual(await pairT3({ text: local, file, fs, safeStorage, fetch, findCandidates: async () => ({ urls: [] }) }),
     { problem: 'the link points at the server\'s own machine; make the link from its Tailscale address' });
-  assert.deepEqual(await pairT3({ text: CRED, file, fs, fetch, findCandidates: async () => [BOX, 'https://other.tail.ts.net'] }),
+  assert.deepEqual(await pairT3({ text: CRED, file, fs, safeStorage, fetch, findCandidates: async () => ({ urls: [BOX, 'https://other.tail.ts.net'] }) }),
     { problem: 'a bare pairing code does not say which server; make the link from its Tailscale address' });
+  assert.deepEqual(await pairT3({ text: CRED, file, fs, safeStorage, fetch, findCandidates: async () => ({ urls: [], missing: true }) }),
+    { problem: 'a bare pairing code does not say which server and Tailscale is not installed to find it; paste the full link' });
+  assert.deepEqual(await pairT3({ text: CRED, file, fs, safeStorage, fetch, findCandidates: async () => { throw new Error('boom'); } }),
+    { problem: 'discovery failed; paste the full link' });
   assert.equal(fs.existsSync(file), false, 'nothing saved and no credential spent');
   assert.deepEqual(server.forms, []);
-  assert.deepEqual(await pairT3({ text: local, file, fs, fetch, findCandidates: async () => [BOX] }), { label: 'build-box', url: BOX });
+  assert.deepEqual(await pairT3({ text: local, file, fs, safeStorage, fetch, findCandidates: async () => ({ urls: [BOX] }) }), { label: 'build-box', url: BOX });
 });
 
 test('a guessed server that rejects the credential says the link may be from another machine', async (t) => {
@@ -125,35 +129,39 @@ test('a guessed server that rejects the credential says the link may be from ano
   const fetch = routed({ [BOX]: server.local });
   const file = configFile(t);
   const guessed = { problem: 'this link may belong to another machine; make it from that machine\'s T3 or paste the full link' };
-  assert.deepEqual(await pairT3({ text: `http://localhost:3773/pair#token=${CRED}`, file, fs, fetch, findCandidates: async () => [BOX] }), guessed);
-  assert.deepEqual(await pairT3({ text: CRED.toLowerCase(), file, fs, fetch, findCandidates: async () => [BOX] }), guessed);
+  assert.deepEqual(await pairT3({ text: `http://localhost:3773/pair#token=${CRED}`, file, fs, safeStorage, fetch, findCandidates: async () => ({ urls: [BOX] }) }), guessed);
+  assert.deepEqual(await pairT3({ text: CRED.toLowerCase(), file, fs, safeStorage, fetch, findCandidates: async () => ({ urls: [BOX] }) }), guessed);
   assert.equal(server.forms[1].subject_token, CRED, 'a lower-case code is sent in T3\'s upper case');
-  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch }),
+  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage, fetch }),
     { problem: 'that pairing link is used up or expired; make a new one' });
 });
 
 test('a server that grants more than read access is refused and nothing is stored', async (t) => {
   const server = await t3Server(t, { scope: () => 'orchestration:read orchestration:write' });
   const file = configFile(t, [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
-  const result = await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch: routed({ [BOX]: server.local }) });
+  const result = await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage, fetch: routed({ [BOX]: server.local }) });
   assert.deepEqual(result, { problem: 'the server did not grant exactly read-only access; nothing was saved' });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
 });
 
-test('a keychain that fails to encrypt leaves the file untouched instead of writing the key in plain text', async (t) => {
+test('a keychain that fails to encrypt spends no credential and leaves the file untouched', async (t) => {
   const server = await t3Server(t);
   const file = configFile(t, [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
   const before = fs.readFileSync(file, 'utf8');
-  const failing = { isEncryptionAvailable: () => true, encryptString: () => { throw new Error('keychain locked'); } };
-  const result = await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage: failing, fetch: routed({ [BOX]: server.local }) });
-  assert.deepEqual(result, { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' });
+  const locked = { isEncryptionAvailable: () => true, encryptString: () => { throw new Error('keychain locked'); } };
+  const broken = { isEncryptionAvailable: () => { throw new Error('no keyring'); } };
+  for (const failing of [locked, broken]) {
+    const result = await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage: failing, fetch: routed({ [BOX]: server.local }) });
+    assert.deepEqual(result, { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' });
+  }
+  assert.deepEqual(server.forms, [], 'no token exchange was sent');
   assert.equal(fs.readFileSync(file, 'utf8'), before);
 });
 
 test('a credential that cannot grant read access is refused', async (t) => {
   const server = await t3Server(t, { onExchange: () => [400, { _tag: 'EnvironmentRequestInvalidError', code: 'invalid_request', reason: 'scope_not_granted', traceId: 'x' }] });
   const file = configFile(t);
-  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch: routed({ [BOX]: server.local }) }),
+  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage, fetch: routed({ [BOX]: server.local }) }),
     { problem: 'that pairing link cannot grant read access; make a new one' });
   assert.equal(fs.existsSync(file), false);
 });
@@ -186,9 +194,9 @@ test('a used pairing link gives a clear problem without the credential', async (
   const fetch = routed({ [BOX]: server.local });
   const file = configFile(t);
   const link = `${BOX}/pair#token=${CRED}`;
-  assert.ok((await pairT3({ text: link, file, fs, fetch })).label);
+  assert.ok((await pairT3({ text: link, file, fs, safeStorage, fetch })).label);
   const saved = fs.readFileSync(file, 'utf8');
-  const again = await pairT3({ text: link, file, fs, fetch });
+  const again = await pairT3({ text: link, file, fs, safeStorage, fetch });
   assert.deepEqual(again, { problem: 'that pairing link is used up or expired; make a new one' });
   assert.equal(fs.readFileSync(file, 'utf8'), saved, 'the first pairing stays');
 });
@@ -200,7 +208,7 @@ test('bad links and bad hosts are refused before any credential is sent', async 
   const problems = [];
   for (const text of ['', 'hello there', 'ftp://box.ts.net/pair#token=X', `${BOX}/settings#token=${CRED}`, `${BOX}/pair`, `https://app.t3.codes/pair#token=${CRED}`,
     `http://build-box.example.com/pair#token=${CRED}`, `http://100.12.1.2:3773/pair#token=${CRED}`, `https://unknown.invalid/pair#token=${CRED}`]) {
-    problems.push((await pairT3({ text, file, fs, fetch })).problem);
+    problems.push((await pairT3({ text, file, fs, safeStorage, fetch })).problem);
   }
   assert.deepEqual(problems.slice(0, 8), [
     'the clipboard is empty; copy a pairing link first',
@@ -217,7 +225,7 @@ test('bad links and bad hosts are refused before any credential is sent', async 
   assert.deepEqual(server.forms, []);
 
   fs.writeFileSync(file, '[{ "url": ');
-  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch }), { problem: 'fix t3-servers.json first; it cannot be read' });
+  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage, fetch }), { problem: 'fix t3-servers.json first; it cannot be read' });
   assert.deepEqual(server.forms, [], 'a broken config does not spend the credential');
 });
 
@@ -246,7 +254,7 @@ test('the tray line shows the key expiry and asks for a reconnect near expiry or
   assert.deepEqual(describeServer({ label: 'x', state: 'ok', error: '', expiresAt: Date.now() + 5 * 36e5 }), { text: 'x: ok (key expires in 5 h)', reconnect: true });
 
   // Reconnecting the rejected server through another address of the same environment replaces its entry.
-  const result = await pairT3({ text: `${url('fresh')}/pair#token=${CRED}`, file, fs, fetch, statuses: s.status() });
+  const result = await pairT3({ text: `${url('fresh')}/pair#token=${CRED}`, file, fs, safeStorage, fetch, statuses: s.status() });
   assert.deepEqual(result, { label: 'build-box', url: url('fresh') });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).map((e) => e.url), [url('fresh')], 'one entry per environment');
 });
