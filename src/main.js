@@ -188,7 +188,6 @@ function t3Lines() {
     if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url, s.label) });
   }
   for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
-  // Without Tailscale and without a configured server, the user is not using remote T3 at all.
   if (discovery.reason && (!discovery.missing || statuses.length || t3servers.problems().length)) {
     lines.push({ label: `Finding T3 servers: ${discovery.reason}`, enabled: false });
   }
@@ -201,8 +200,6 @@ function t3Lines() {
   return lines;
 }
 
-// Settings > Connections is where T3 makes a pairing link. The page opens wherever the browser is
-// signed in to that server, so the steps name the app to use.
 function openPairPage(url, label) {
   shell.openExternal(new URL('/settings/connections', url + '/').href);
   const body = `In T3 (the app where ${label} is connected), open Settings, Connections, Create pairing link, copy it, then choose Paste T3 pairing link in Roombai.`;
@@ -210,7 +207,6 @@ function openPairPage(url, label) {
   else void dialog.showMessageBox({ type: 'info', title: `Connect ${label}`, message: body });
 }
 
-// The page opens at once from the last pass; the fresh pass corrects the tray if the server moved.
 function connectServer(d) {
   openPairPage(d.url, d.label);
   void discover();
@@ -244,7 +240,6 @@ async function pastePairingLink() {
   }
 }
 
-// Rebuilding the tray on each pass also keeps the key expiry lines current.
 function discover() {
   discovering ||= discoverT3().then((found) => { discovery = found; }).finally(() => {
     discovering = null;

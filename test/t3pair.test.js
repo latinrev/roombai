@@ -11,8 +11,6 @@ const { Watcher } = require('../src/watcher');
 const DAY = 864e5;
 const CRED = 'K7M2Q9XRT4WZ';
 
-// A T3 server with one-time pairing credentials, as /oauth/token and the shell route behave.
-// onExchange runs while the exchange is in flight; a returned [status, body] replaces the answer.
 async function t3Server(t, { environmentId = 'env-1', label = 'build-box', scope = (asked) => asked, credentials = [CRED],
   onExchange = () => {} } = {}) {
   const state = { credentials: new Set(credentials), tokens: new Set(), forms: [] };
@@ -43,7 +41,6 @@ async function t3Server(t, { environmentId = 'env-1', label = 'build-box', scope
   return state;
 }
 
-// Plays DNS and Tailscale Serve, so a tailnet https name reaches a local server.
 const routed = (routes) => (url, opts) => {
   const u = new URL(url);
   return globalThis.fetch((routes[u.origin] || u.origin) + u.pathname, opts);
@@ -253,7 +250,6 @@ test('the tray line shows the key expiry and asks for a reconnect near expiry or
   ]);
   assert.deepEqual(describeServer({ label: 'x', state: 'ok', error: '', expiresAt: Date.now() + 5 * 36e5 }), { text: 'x: ok (key expires in 5 h)', reconnect: true });
 
-  // Reconnecting the rejected server through another address of the same environment replaces its entry.
   const result = await pairT3({ text: `${url('fresh')}/pair#token=${CRED}`, file, fs, safeStorage, fetch, statuses: s.status() });
   assert.deepEqual(result, { label: 'build-box', url: url('fresh') });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).map((e) => e.url), [url('fresh')], 'one entry per environment');

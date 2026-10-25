@@ -99,7 +99,6 @@ class IncompatibleError extends Error {}
 
 const trimUrl = (url) => String(url).replace(/\/+$/, '');
 
-// A server's /.well-known/t3/environment answer, checked: anything else is not a T3 server Roombai can name.
 async function fetchEnvironment(fetch, url, timeoutMs) {
   const res = await fetch(trimUrl(url) + '/.well-known/t3/environment', { headers: { Accept: 'application/json' }, redirect: 'error',
     signal: AbortSignal.timeout(timeoutMs) });
@@ -112,7 +111,6 @@ async function fetchEnvironment(fetch, url, timeoutMs) {
     protocol: env.orchestrationProtocolVersion };
 }
 
-// The token sealed by the OS keychain, '' when this machine cannot encrypt, or null when encrypting failed.
 function sealToken(safeStorage, token) {
   let available;
   try { available = safeStorage.isEncryptionAvailable(); } catch { return null; }
@@ -318,7 +316,6 @@ function hostOf(url) {
 const DAY = 864e5;
 const RECONNECT_MS = 3 * DAY;
 
-// One tray line per server. A rejected key, or one that runs out within 3 days, asks for a reconnect.
 function describeServer(s, now = Date.now()) {
   const left = s.expiresAt ? s.expiresAt - now : Infinity;
   let note = s.error;

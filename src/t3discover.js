@@ -34,7 +34,6 @@ function probeUrls(status) {
   return urls;
 }
 
-// hits: [{ url, owner, env }] with env from fetchEnvironment. One server per environmentId, https first.
 function mergeHits(hits, selfId) {
   const byId = new Map();
   for (const { url, owner, env } of hits) {

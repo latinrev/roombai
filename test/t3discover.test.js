@@ -27,7 +27,6 @@ function tmpDir(t) {
   return dir;
 }
 
-// A stand-in for the tailscale CLI: a node script that prints a status fixture, run as a real child process.
 function fakeTailscale(t, { status, exitCode = 0 }) {
   const dir = tmpDir(t);
   fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify(status));
@@ -37,7 +36,6 @@ function fakeTailscale(t, { status, exitCode = 0 }) {
   return { clis: [cli], exec, dir };
 }
 
-// Plays DNS and Tailscale Serve: tailnet URLs reach local servers, loopback passes through, the rest is refused.
 const routed = (routes) => (url, opts) => {
   const u = new URL(url);
   return globalThis.fetch((routes[u.origin] || (u.hostname === '127.0.0.1' ? u.origin : 'http://127.0.0.1:1')) + u.pathname, opts);

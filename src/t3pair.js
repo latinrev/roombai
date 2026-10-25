@@ -32,9 +32,7 @@ function parsePairingLink(text) {
 
 const isLoopback = (host) => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/.test(new URL(host).hostname);
 
-// findCandidates resolves to { urls, missing }: the servers a link without a usable host can mean,
-// and whether Tailscale is missing. A link made on the server itself says localhost, so it can only
-// mean the one candidate. That is a guess: the link may have come from a machine Roombai never found.
+// T3 builds a pairing link from the address its page was opened at, so a link made on the server itself says localhost.
 async function resolveHost(host, findCandidates) {
   if (host && !isLoopback(host)) return { url: host, guessed: false };
   let found;
@@ -80,8 +78,6 @@ async function exchange({ url, guessed, credential, fetch, platform }) {
   return { token: json.access_token, expiresIn: json.expires_in };
 }
 
-// Turns a pasted pairing link into a read-only entry in t3-servers.json, with the token sealed when
-// safeStorage can encrypt. statuses: the configured servers, so a re-pair replaces their old entry.
 async function pairT3({ text, file, fs, safeStorage, findCandidates = async () => ({ urls: [] }), statuses = [], fetch = globalThis.fetch,
   now = Date.now, platform = process.platform }) {
   const parsed = parsePairingLink(text);
@@ -94,7 +90,6 @@ async function pairT3({ text, file, fs, safeStorage, findCandidates = async () =
     const { url } = target;
     const badUrl = urlProblem(url);
     if (badUrl) return { problem: `the link's server address: ${badUrl}` };
-    // Checked before the credential is spent; save() reads the file again for the write.
     const early = readList(fs, file);
     if (early.problem) return { problem: early.problem };
     if (sealToken(safeStorage, 'probe') === null) return NOT_SEALED;
@@ -116,7 +111,6 @@ async function pairT3({ text, file, fs, safeStorage, findCandidates = async () =
   }
 }
 
-// Synchronous from read to rename, so an entry another pairing or a hand edit added meanwhile stays.
 function save({ file, fs, safeStorage, statuses, url, env, token, expiresAt }) {
   const tokenEnc = sealToken(safeStorage, token);
   if (tokenEnc === null) return NOT_SEALED;
@@ -130,12 +124,9 @@ function save({ file, fs, safeStorage, statuses, url, env, token, expiresAt }) {
   return { label: env.label, url };
 }
 
-// A discovered server is connected once a configured entry has its environmentId or its URL.
 const unconnected = (discovered, statuses) =>
   discovered.filter((d) => !statuses.some((s) => s.environmentId === d.environmentId || trimUrl(s.url) === d.url));
 
-// What findCandidates hands resolveHost. A tagged machine may serve the whole tailnet, so only the
-// user's own machines are guessed.
 const guessCandidates = (discovery, statuses) => ({
   urls: [...unconnected(discovery.servers, statuses).filter((d) => d.compatible && d.owner === 'own').map((d) => d.url),
     ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)],
