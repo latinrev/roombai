@@ -163,17 +163,24 @@ Roombai can also watch T3 Code threads that run on other machines. Each top-leve
 
 List only other machines. Roombai already shows the T3 Code threads on the machine it runs on, from their local transcripts, so adding that machine's server shows each of its threads twice.
 
-#### Connect from the tray
+#### Connect from the menu
 
-When this machine and the T3 machine share a Tailscale tailnet, Roombai finds the server for you. At startup, every 5 minutes, and after you choose **Connect**, it asks the Tailscale CLI for online peers and checks each one for a T3 server, on its `https://<name>.ts.net` address and on its `100.x` address at port 3773. It checks only machines signed in to your own Tailscale account and tagged machines in your own tailnet, so machines other people share with you are skipped. A server that runs a T3 version Roombai cannot read gets a tray line but no **Connect** item. When Tailscale is stopped, the tray says so in one line, such as `Finding T3 servers: Tailscale not running`. When Tailscale is missing, the tray says so only if `t3-servers.json` has an entry, even one with a problem.
+Open the menu from the roof. The **T3 machines** section sits at the top. Its header shows how many machines Roombai knows about and a badge such as `1 to set up` when a machine is found but not connected, or needs a new key. The section opens by itself while a machine needs setting up and stays closed when all are connected. Click the header to open or close it, and Roombai remembers your choice.
 
-1. In the tray menu, choose **Connect <machine>...** for the server you want. It opens that server's **Settings > Connections** page in your browser, and a notification repeats the next steps.
-2. Choose **Create pairing link** and copy the link.
-3. In the tray menu, choose **Paste T3 pairing link**. Roombai reads the clipboard once, when you click, and never watches it.
+Each machine gets one row with its state: `key 28d`, `not connected`, `reconnect`, or `offline`. To connect one:
 
-Roombai trades the one-time link for a read-only `orchestration:read` key and saves it, encrypted, in `t3-servers.json`. It refuses a key with any other scope. Within 10 seconds the threads appear in the room and the tray shows a line such as `joel-linux: ok (key expires in 30 d)`.
+1. Click **Connect** beside the machine, or **Connect a machine** below the list and pick it. A card replaces the menu and walks you through three steps.
+2. Click **Open T3**. Roombai opens that server's **Settings > Connections** page in your browser.
+3. In T3, switch to that machine. Open **Settings**, then **Connections**, click **Create pairing link**, and copy the **Pairing link**. Back in Roombai, click **I copied it**.
+4. Click **Paste link**. Roombai reads the clipboard once, when you click, and never watches it. The card then says `Connected <machine>`, or what went wrong. Click **Done**, and the row shows `key 30d`.
 
-Roombai reads three kinds of links: `https://<host>/pair#token=...`, the hosted `https://app.t3.codes/pair?host=<host>#token=...`, and a bare 12-character pairing code, in either case. A link made for `localhost` on the T3 machine, or a bare code, goes to the one server on your own machines that is waiting to connect, so Roombai checks the tailnet again first. Roombai never sends it to a tagged machine. When more than one is waiting, or the server is tagged, make the link from the server's Tailscale address instead. If that server rejects the code, the tray says the link may belong to another machine. Make the link in that machine's T3, or paste the full link.
+To use a link you made some other way, click **Connect a machine**, then **My machine isn't listed**, and paste it. Press Escape or click the close button to leave the card. The tray has the same actions: **Connect <machine>...** and **Paste T3 pairing link**.
+
+When this machine and the T3 machine share a Tailscale tailnet, Roombai finds the server for you. At startup, every 5 minutes, and after you click **Connect**, it asks the Tailscale CLI for online peers and checks each one for a T3 server, on its `https://<name>.ts.net` address and on its `100.x` address at port 3773. It checks only machines signed in to your own Tailscale account and tagged machines in your own tailnet, so machines other people share with you are skipped. A server that runs a T3 version Roombai cannot read is listed as `T3 too old`, without a **Connect** button. When Tailscale is stopped, the menu and the tray say so in one line, such as `Finding T3 servers: Tailscale not running`. When Tailscale is missing and no server is set up, the menu says `Install Tailscale to find T3 on your other machines.`
+
+Roombai trades the one-time link for a read-only `orchestration:read` key and saves it, encrypted, in `t3-servers.json`. It refuses a key with any other scope. Within 10 seconds the threads appear in the room.
+
+Roombai reads three kinds of links: `https://<host>/pair#token=...`, the hosted `https://app.t3.codes/pair?host=<host>#token=...`, and a bare 12-character pairing code, in either case. A link made for `localhost` on the T3 machine, or a bare code, goes to the one server on your own machines that is waiting to connect, so Roombai checks the tailnet again first. Roombai never sends it to a tagged machine. When more than one is waiting, or the server is tagged, make the link from the server's Tailscale address instead. If that server rejects the code, the card says the link may belong to another machine. Make the link in that machine's T3, or paste the full link.
 
 If the browser asks for a pairing code instead of showing the settings page, the browser is not signed in to that server. Make the link in the T3 app where that machine is connected, or on the T3 machine run:
 
@@ -181,11 +188,11 @@ If the browser asks for a pairing code instead of showing the settings page, the
 t3 auth pairing create --scope orchestration:read --ttl 5m --base-url https://your-host.your-tailnet.ts.net
 ```
 
-The key lasts 30 days, and T3 does not renew it. From 3 days before it runs out, or as soon as the server rejects it, the tray shows **Reconnect <machine>...**. Choose it, make a new link, and paste it the same way. The new key replaces the old entry.
+The key lasts 30 days, and T3 does not renew it. From 3 days before it runs out, or as soon as the server rejects it, the menu shows **Reconnect** beside the machine, and the tray shows **Reconnect <machine>...**. Click it and follow the same steps. The new key replaces the old entry.
 
 #### Add a server by hand
 
-The tray flow writes the same file you can edit yourself. Use this when the machines don't share a tailnet.
+The menu and the tray write the same file you can edit yourself. Use this when the machines don't share a tailnet.
 
 1. On the machine that runs T3 Code, issue a read-only token:
 
