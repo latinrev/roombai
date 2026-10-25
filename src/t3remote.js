@@ -10,21 +10,35 @@ const PROTOCOL = 2;
 // A server with no good poll for this long loses its roombas. An outage is not an agent status.
 const STALE_MS = 3 * POLL_MS;
 
-// Run status -> room status, after pending requests. idle, queued, interrupted, cancelled and
-// rolled_back have no awareness phase in T3, so they fall through to idle.
-const RUN_STATUS = { preparing: 'working', starting: 'working', running: 'working', waiting: 'working', failed: 'stuck' };
+// T3 awareness phase -> room status, with both waiting phases shown as waiting.
+const ROOM_STATUS = { starting: 'working', running: 'working', waiting_for_input: 'waiting',
+  waiting_for_approval: 'waiting', completed: 'done', failed: 'stuck' };
 const LIVE_RUN = new Set(['preparing', 'starting', 'running']);
 const HOLDS_COMPLETION = new Set(['subagent', 'monitor', 'background_task']);
 
-// Mirrors T3's resolveThreadAwarenessPhaseV2 and backgroundWorkHoldsCompletion
-// (packages/shared/src/agentAwareness.ts), with both waiting phases shown as waiting.
-function remoteStatusOf(thread) {
+const holdsCompletion = (thread) => (thread.pendingBackgroundTasks || []).some((task) => HOLDS_COMPLETION.has(task.kind));
+
+// Mirrors T3's resolveThreadAwarenessPhaseV2 (packages/shared/src/agentAwareness.ts). idle, queued,
+// interrupted, cancelled and rolled_back have no phase.
+function phaseOf(thread) {
   const run = thread.activityRunStatus ?? thread.status;
   const request = thread.pendingRuntimeRequest;
-  if (request?.kind === 'user_input' && (request.blocking !== false || !LIVE_RUN.has(run))) return 'waiting';
-  if (request && request.kind !== 'user_input' && request.kind !== 'auth_refresh') return 'waiting';
-  if (run === 'completed') return (thread.pendingBackgroundTasks || []).some((task) => HOLDS_COMPLETION.has(task.kind)) ? 'working' : 'done';
-  return RUN_STATUS[run] || 'idle';
+  if (request?.kind === 'user_input' && (request.blocking !== false || !LIVE_RUN.has(run))) return 'waiting_for_input';
+  if (request && request.kind !== 'user_input' && request.kind !== 'auth_refresh') return 'waiting_for_approval';
+  if (run === 'preparing' || run === 'starting') return 'starting';
+  if (run === 'running' || run === 'waiting') return 'running';
+  if (run === 'completed') return holdsCompletion(thread) ? 'running' : 'completed';
+  if (run === 'failed') return 'failed';
+  return null;
+}
+
+// Mirrors T3's projectThreadAwarenessV2: a thread T3 leaves out of its awareness list idles here.
+function remoteStatusOf(thread) {
+  const phase = phaseOf(thread);
+  if (phase === 'completed' && thread.latestRunStopRequested === true) return 'idle';
+  if (thread.latestRunSilent === true && (phase === 'starting' || phase === 'running' || phase === 'completed')) return 'idle';
+  if (thread.settledOverride === 'settled' && (phase === 'completed' || phase === 'failed') && !holdsCompletion(thread)) return 'idle';
+  return ROOM_STATUS[phase] || 'idle';
 }
 
 const time = (value) => Date.parse(value || '') || 0;
@@ -62,7 +76,7 @@ function agentsFromShell(shell, server, now, prev = new Map()) {
       remoteStatus: status,
       lastEventAt: updatedAt,
       turnStartedAt: time(t.activityRunStartedAt) || time(t.latestRunStartedAt) || updatedAt,
-      completedAt: silent ? before?.completedAt || 0 : status === 'done' ? time(t.latestRunCompletedAt) || updatedAt : 0,
+      completedAt: status === 'done' ? time(t.latestRunCompletedAt) || updatedAt : before?.completedAt || 0,
       error: status === 'stuck' ? firstLine(t.lastError || 'failed', 140) : '',
       lastMessage: firstLine(t.latestVisibleMessage?.text, 220),
       toolCalls: t.itemCount || 0,

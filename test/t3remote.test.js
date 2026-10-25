@@ -159,6 +159,13 @@ test('remote status follows T3 awareness phases, not transcript timing', async (
     thread('j-queued', { status: 'queued' }),
     thread('k-interrupted', { status: 'interrupted' }),
     thread('l-quiet-run', { status: 'running', updatedAt: iso(20 * 60e3), latestRunStartedAt: iso(25 * 60e3) }),
+    thread('m-stopped', { status: 'completed', latestRunStopRequested: true }),
+    thread('n-settled', { status: 'completed', settledOverride: 'settled' }),
+    thread('o-settled-failed', { status: 'failed', settledOverride: 'settled' }),
+    thread('p-settled-subagent', { status: 'completed', settledOverride: 'settled', pendingBackgroundTasks: [{ id: 'b3', kind: 'subagent' }] }),
+    thread('q-settled-failed-monitor', { status: 'failed', settledOverride: 'settled', pendingBackgroundTasks: [{ id: 'b4', kind: 'monitor' }] }),
+    thread('r-silent-starting', { status: 'starting', latestRunSilent: true }),
+    thread('s-silent-ask', { status: 'running', latestRunSilent: true, pendingRuntimeRequest: { id: 'p2', kind: 'permission', createdAt: iso(10e3) } }),
   ] }) });
   const { watcher, remote, statuses } = connect(t, server);
   await remote.refresh();
@@ -166,12 +173,14 @@ test('remote status follows T3 awareness phases, not transcript timing', async (
     ['a-live-run', 'working'], ['b-ask-after-run', 'waiting'], ['c-ask-during-run', 'working'], ['d-ask-blocking', 'waiting'],
     ['e-permission', 'waiting'], ['f-auth-refresh', 'working'], ['g-subagent', 'working'], ['h-command', 'done'],
     ['i-starting', 'working'], ['j-queued', 'idle'], ['k-interrupted', 'idle'], ['l-quiet-run', 'working'],
+    ['m-stopped', 'idle'], ['n-settled', 'idle'], ['o-settled-failed', 'idle'], ['p-settled-subagent', 'working'],
+    ['q-settled-failed-monitor', 'stuck'], ['r-silent-starting', 'idle'], ['s-silent-ask', 'waiting'],
   ]);
   const live = watcher.snapshot().find((a) => a.id === 't3:env-1:a-live-run');
   assert.ok(Math.abs(live.since - (Date.now() - 20e3)) < 5e3, 'since is the activity run start');
 });
 
-test('a silent compaction run keeps the ack, the hide, the finish time and the turn count', async (t) => {
+test('a silent compaction run idles without a turn, and keeps the ack and the hide', async (t) => {
   const finished = iso(5 * 60e3);
   const server = await t3Server(t, { shell: () => ({ projects: fixture().projects, threads: [
     thread('fresh', { status: 'completed', latestRunCompletedAt: finished }),
@@ -179,21 +188,34 @@ test('a silent compaction run keeps the ack, the hide, the finish time and the t
     thread('tucked', { status: 'completed', latestRunCompletedAt: finished }),
   ] }) });
   const { watcher, remote } = connect(t, server);
-  const room = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status, a.turns, a.since]);
+  const room = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status, a.turns]);
+  const fresh = [];
+  watcher.on('agents', (list) => {
+    const status = list.find((a) => a.id === 't3:env-1:fresh')?.status;
+    if (status && status !== fresh.at(-1)) fresh.push(status);
+  });
   await remote.refresh();
   watcher.ack('t3:env-1:seen');
   watcher.hide('t3:env-1:tucked');
-  assert.deepEqual(room().map((a) => a.slice(0, 3)), [['fresh', 'done', 1], ['seen', 'idle', 1]]);
+  assert.deepEqual(room(), [['fresh', 'done', 1], ['seen', 'idle', 1]]);
 
-  const compacted = (id, fields = {}) => thread(id, { status: 'completed', latestRunId: `compact-${id}`, latestRunSilent: true, latestRunCompletedAt: iso(1e3), ...fields });
-  server.shell = () => ({ projects: fixture().projects, threads: ['fresh', 'seen', 'tucked'].map((id) => compacted(id)) });
+  const compacting = (id, fields) => thread(id, { latestRunId: `compact-${id}`, latestRunSilent: true, ...fields });
+  const ids = ['fresh', 'seen', 'tucked'];
+  server.shell = () => ({ projects: fixture().projects, threads: [
+    ...ids.map((id) => compacting(id, { status: 'running', latestRunStartedAt: iso(2e3), updatedAt: iso(1e3) })),
+    compacting('stale', { status: 'running', updatedAt: iso(13 * 3600e3) }),
+  ] });
   await remote.refresh();
-  assert.deepEqual(room().map((a) => a.slice(0, 3)), [['fresh', 'done', 1], ['seen', 'idle', 1]], 'ack and hide survive, no new turn');
-  assert.equal(room()[0][3], Date.parse(finished), 'done keeps the real run finish time');
+  assert.deepEqual(room(), [['fresh', 'idle', 1], ['seen', 'idle', 1]], 'a silent run is not work, and an old one stays out');
+
+  server.shell = () => ({ projects: fixture().projects, threads: ids.map((id) => compacting(id, { status: 'completed', latestRunCompletedAt: iso(1e3) })) });
+  await remote.refresh();
+  assert.deepEqual(room(), [['fresh', 'idle', 1], ['seen', 'idle', 1]], 'ack and hide survive, no new turn');
+  assert.deepEqual(fresh, ['done', 'idle'], 'no done, working, done flip');
 
   server.shell = () => ({ projects: fixture().projects, threads: [thread('seen', { status: 'running', latestRunId: 'run-2' })] });
   await remote.refresh();
-  assert.deepEqual(room().map((a) => a.slice(0, 3)), [['seen', 'working', 2]], 'a real run clears the ack and counts');
+  assert.deepEqual(room(), [['seen', 'working', 2]], 'a real run clears the ack and counts');
 });
 
 for (const outage of ['returns 500', 'closes']) {
