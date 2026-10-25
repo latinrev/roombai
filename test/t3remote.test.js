@@ -351,7 +351,7 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
     { url: 'http://localhost:3773', token: 'boom' },
   ], 'tokens are encrypted in place; one that fails to encrypt stays as it was');
   assert.equal(saved.length, 13, 'rejected entries stay in the file for the user to fix');
-  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   assert.equal(loaded.mtimeMs, fs.statSync(file).mtimeMs);
   assert.deepEqual(fs.readdirSync(path.dirname(file)), ['t3-servers.json'], 'no temp file left behind');
 

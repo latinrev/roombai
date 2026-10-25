@@ -98,7 +98,7 @@ for (const [name, link] of [
     assert.equal(Buffer.from(entry.tokenEnc, 'base64').toString(), 'enc:access-1-env-1');
     const expiresAt = Date.parse(entry.expiresAt);
     assert.ok(expiresAt >= before + 30 * DAY && expiresAt <= Date.now() + 30 * DAY, 'expiresAt is 30 days out');
-    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600);
     assert.deepEqual(s.status().map((st) => describeServer(st)), [{ text: 'build-box: ok (key expires in 30 d)', reconnect: false }]);
   });
 }
