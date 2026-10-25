@@ -12,8 +12,10 @@ const DAY = 864e5;
 const CRED = 'K7M2Q9XRT4WZ';
 
 // A T3 server with one-time pairing credentials, as /oauth/token and the shell route behave.
-async function t3Server(t, { environmentId = 'env-1', label = 'build-box', scope = (asked) => asked } = {}) {
-  const state = { credentials: new Set([CRED]), tokens: new Set(), forms: [] };
+// onExchange runs while the exchange is in flight; a returned [status, body] replaces the answer.
+async function t3Server(t, { environmentId = 'env-1', label = 'build-box', scope = (asked) => asked, credentials = [CRED],
+  onExchange = () => {} } = {}) {
+  const state = { credentials: new Set(credentials), tokens: new Set(), forms: [] };
   const server = http.createServer(async (req, res) => {
     const json = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
     if (req.url === '/.well-known/t3/environment') return json(200, { environmentId, label, orchestrationProtocolVersion: 2 });
@@ -22,6 +24,8 @@ async function t3Server(t, { environmentId = 'env-1', label = 'build-box', scope
       for await (const chunk of req) body += chunk;
       const form = Object.fromEntries(new URLSearchParams(body));
       state.forms.push(form);
+      const reply = await onExchange(form);
+      if (reply) return json(...reply);
       if (!state.credentials.delete(form.subject_token)) return json(401, { _tag: 'EnvironmentAuthInvalidError', code: 'auth_invalid', reason: 'invalid_credential' });
       const token = `access-${state.tokens.size + 1}-${environmentId}`;
       state.tokens.add(token);
@@ -71,13 +75,15 @@ for (const [name, link] of [
   ['a direct link', `${BOX}/pair#token=${CRED}`],
   ['a hosted app link', `https://app.t3.codes/pair?host=${encodeURIComponent(BOX)}&label=build-box#token=${CRED}`],
   ['an old link with the token in the query', `${BOX}/pair?token=${CRED}`],
+  ['a hosted app link whose host has a path', `https://app.t3.codes/pair?host=${encodeURIComponent(BOX + '/pair/')}#token=${CRED}`],
 ]) {
   test(`pairing with ${name} stores an encrypted read-only key and polls ok`, async (t) => {
     const server = await t3Server(t);
     const fetch = routed({ [BOX]: server.local });
     const file = configFile(t);
     const before = Date.now();
-    assert.deepEqual(await pairT3({ text: ` ${link}\n`, file, fs, fetch, platform: 'win32' }), { label: 'build-box', url: BOX });
+    assert.deepEqual(await pairT3({ text: ` ${link}\n`, file, fs, safeStorage, fetch, platform: 'win32' }), { label: 'build-box', url: BOX });
+    assert.ok(!fs.readFileSync(file, 'utf8').includes('"token"'), 'the first write already holds only the sealed token');
     assert.deepEqual(server.forms, [{
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: CRED,
       subject_token_type: 'urn:t3:params:oauth:token-type:environment-bootstrap',
@@ -113,12 +119,66 @@ test('a link made on the server itself pairs with the one server found on the ta
   assert.deepEqual(await pairT3({ text: local, file, fs, fetch, candidates: [BOX] }), { label: 'build-box', url: BOX });
 });
 
+test('a guessed server that rejects the credential says the link may be from another machine', async (t) => {
+  const server = await t3Server(t, { credentials: [] });
+  const fetch = routed({ [BOX]: server.local });
+  const file = configFile(t);
+  const guessed = { problem: 'this link may belong to another machine; make it from that machine\'s T3 or paste the full link' };
+  assert.deepEqual(await pairT3({ text: `http://localhost:3773/pair#token=${CRED}`, file, fs, fetch, candidates: [BOX] }), guessed);
+  assert.deepEqual(await pairT3({ text: CRED.toLowerCase(), file, fs, fetch, candidates: [BOX] }), guessed);
+  assert.equal(server.forms[1].subject_token, CRED, 'a lower-case code is sent in T3\'s upper case');
+  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch }),
+    { problem: 'that pairing link is used up or expired; make a new one' });
+});
+
 test('a server that grants more than read access is refused and nothing is stored', async (t) => {
   const server = await t3Server(t, { scope: () => 'orchestration:read orchestration:write' });
   const file = configFile(t, [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
   const result = await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch: routed({ [BOX]: server.local }) });
   assert.deepEqual(result, { problem: 'the server did not grant exactly read-only access; nothing was saved' });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
+});
+
+test('a credential that cannot grant read access is refused', async (t) => {
+  const server = await t3Server(t, { onExchange: () => [400, { _tag: 'EnvironmentRequestInvalidError', code: 'invalid_request', reason: 'scope_not_granted', traceId: 'x' }] });
+  const file = configFile(t);
+  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch: routed({ [BOX]: server.local }) }),
+    { problem: 'that pairing link cannot grant read access; make a new one' });
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('two pairings at once both stay in the file', async (t) => {
+  const OTHER = 'https://mac-studio.tail.ts.net';
+  const slow = () => new Promise((resolve) => setTimeout(resolve, 50));
+  const box = await t3Server(t, { onExchange: slow });
+  const mac = await t3Server(t, { environmentId: 'env-2', label: 'mac-studio', credentials: ['P4N7Q2W9XRTZ'], onExchange: slow });
+  const fetch = routed({ [BOX]: box.local, [OTHER]: mac.local });
+  const file = configFile(t);
+  const results = await Promise.all([pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage, fetch }),
+    pairT3({ text: `${OTHER}/pair#token=P4N7Q2W9XRTZ`, file, fs, safeStorage, fetch })]);
+  assert.deepEqual(results, [{ label: 'build-box', url: BOX }, { label: 'mac-studio', url: OTHER }]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).map((e) => e.url), [BOX, OTHER]);
+});
+
+test('an entry added by hand during the exchange is kept', async (t) => {
+  const file = configFile(t, [{ url: 'https://old.ts.net', token: 'old' }]);
+  const server = await t3Server(t, { onExchange: () => {
+    fs.writeFileSync(file, JSON.stringify([{ url: 'https://old.ts.net', token: 'old' }, { url: 'https://hand.ts.net', token: 'typed' }]));
+  } });
+  assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage, fetch: routed({ [BOX]: server.local }) }),
+    { label: 'build-box', url: BOX });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).map((e) => e.url), ['https://old.ts.net', 'https://hand.ts.net', BOX]);
+});
+
+test('pasting the same link twice at once shares one exchange and both say connected', async (t) => {
+  const server = await t3Server(t, { onExchange: () => new Promise((resolve) => setTimeout(resolve, 50)) });
+  const fetch = routed({ [BOX]: server.local });
+  const file = configFile(t);
+  const link = `${BOX}/pair#token=${CRED}`;
+  const results = await Promise.all([pairT3({ text: link, file, fs, safeStorage, fetch }), pairT3({ text: ` ${link}`, file, fs, safeStorage, fetch })]);
+  assert.deepEqual(results, [{ label: 'build-box', url: BOX }, { label: 'build-box', url: BOX }]);
+  assert.equal(server.forms.length, 1);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).length, 1);
 });
 
 test('a used pairing link gives a clear problem without the credential', async (t) => {
@@ -138,12 +198,13 @@ test('bad links and bad hosts are refused before any credential is sent', async 
   const file = configFile(t);
   const fetch = routed({ [BOX]: server.local });
   const problems = [];
-  for (const text of ['', 'hello there', 'ftp://box.ts.net/pair#token=X', `${BOX}/pair`, `https://app.t3.codes/pair#token=${CRED}`,
+  for (const text of ['', 'hello there', 'ftp://box.ts.net/pair#token=X', `${BOX}/settings#token=${CRED}`, `${BOX}/pair`, `https://app.t3.codes/pair#token=${CRED}`,
     `http://build-box.example.com/pair#token=${CRED}`, `http://100.12.1.2:3773/pair#token=${CRED}`, `https://unknown.invalid/pair#token=${CRED}`]) {
     problems.push((await pairT3({ text, file, fs, fetch })).problem);
   }
-  assert.deepEqual(problems.slice(0, 7), [
+  assert.deepEqual(problems.slice(0, 8), [
     'the clipboard is empty; copy a pairing link first',
+    'the clipboard does not hold a T3 pairing link',
     'the clipboard does not hold a T3 pairing link',
     'the clipboard does not hold a T3 pairing link',
     'the link has no pairing token',
@@ -151,7 +212,7 @@ test('bad links and bad hosts are refused before any credential is sent', async 
     'the link\'s server address: use https; http is only for localhost and Tailscale 100.x addresses',
     'the link\'s server address: use https; http is only for localhost and Tailscale 100.x addresses',
   ]);
-  assert.match(problems[7], /^could not reach the server: /);
+  assert.match(problems[8], /^could not reach the server: /);
   assert.ok(!problems.join(' ').includes(CRED), 'no problem line shows the credential');
   assert.deepEqual(server.forms, []);
 
