@@ -1,33 +1,41 @@
 # Remote T3 threads
 
-Pending. This lands with `feat/remote-t3-threads`. Nothing here is verified yet, and none of it works on a checkout without that branch. When it lands, check every handle below against the merged code and remove this paragraph.
-
-RoomBai can watch T3 Code servers on other machines. Each remote thread becomes a roomba, and its card names the machine it runs on.
+RoomBai polls T3 Code servers on other machines. Each top-level remote thread becomes a roomba, and its card names the machine it runs on. The code is `src/t3remote.js`.
 
 ## Sub-features
 
-- `t3-config` reads the server list from the file named by `ROOMBAI_T3_SERVERS`.
-- `t3-threads` turns each remote thread into an agent with a `t3:` id and a `machine` field.
-- `t3-status` maps the thread's state to a roomba status.
+- `t3-config` reads the server list from `t3-servers.json` in userData, or from the file named by `ROOMBAI_T3_SERVERS` in dev runs. A plaintext `token` is rewritten as `tokenEnc` with mode 0600.
+- `t3-threads` turns each remote thread into an agent with a `t3:<environmentId>:<threadId>` id and a `machine` field. Subagent threads, archived threads and threads idle for more than 12 h stay out.
+- `t3-status` copies T3's own `projectThreadAwarenessV2` rules into a roomba status.
+- `t3-outage` removes a server's roombas after 30 s without a good poll. Ack and hide survive the outage.
+- `t3-problems` lists each bad config entry as a disabled tray line. Invalid JSON keeps the previous servers polling.
 
 ## How to get to it (user POV)
 
-- The user writes a JSON config with each server's URL and token and starts RoomBai with `ROOMBAI_T3_SERVERS=<config.json>`.
-- Remote threads then appear in the room beside local agents.
+- On the T3 host, run `t3 auth session issue --scope orchestration:read --ttl 30d --label roombai --token-only`.
+- In RoomBai, open the tray item "Remote T3 servers…", paste the server URL and token, and save.
+- Remote threads appear in the room within 10 s. The tray shows one `<machine>: ok` line per server.
 
 ## Driving it with cdp.mjs and curl
 
 Preconditions:
 
-- The checkout includes `feat/remote-t3-threads`.
-- A reachable T3 server and a token for it. The config holds a secret, so keep it in a private temp dir, never in the repo or in evidence.
-- `launch.sh` passes the variable through, since it uses `env` and keeps the caller's environment.
+- A reachable T3 server and an `orchestration:read` token. joel-linux keeps one at `~/.local/share/agent-fleet/roombai/joel-linux.token`.
+- The config holds a secret. Keep it in a private 0600 file in a `mktemp -d` folder, never in the repo or in evidence, and delete it after `stop.sh`.
 
-- **Configure.** Run `CFG=$(mktemp -d)/t3-servers.json` and write the server URL and token there in the shape the branch defines. Launch with `ROOMBAI_T3_SERVERS=$CFG .claude/skills/verify/scripts/launch.sh`. Delete `$CFG` after `stop.sh`.
-- **Read the snapshot.** Run `curl -s http://127.0.0.1:47770/ | jq '.[] | select(.id | startswith("t3:")) | {id, status, title, machine}'`. Each remote thread appears with its `machine`.
-- **See it in the room.** Pin a `t3:` roomba with `$CDP tap` and check that the card names the machine. Save `$CDP shot`.
+Steps:
+
+- **Configure.** Write `[{"url":"https://joel-linux.tail0784c2.ts.net","token":"<token>"}]` to `$CFG` with mode 0600. Launch with `ROOMBAI_T3_SERVERS=$CFG .claude/skills/verify/scripts/launch.sh`.
+- **Read the snapshot.** After about 15 s, run `curl -s http://127.0.0.1:47770/ | jq '[.[] | select(.id | startswith("t3:"))] | group_by(.status) | map({status: .[0].status, n: length})'`. Every `t3:` agent has `machine` set to the server's label.
+- **Check the rewrite.** `$CFG` now holds `tokenEnc` and no `token`, with mode 600.
+- **See it in the room.** Pin a `t3:` roomba with `$CDP tap` and check that `#tip-meta` reads `<Provider> · on <machine> · <project>`. Save `$CDP shot`.
+- **Outage.** Point the config at `http://127.0.0.1:<LISTEN_PORT>` and run `forward.py LISTEN_PORT 3773` on the T3 host. Ack a done roomba with `#tip-ack` and hide one with `#tip-hide`. Kill the forwarder by its PID. Sample `GET /` every 5 s. The `t3:` agents leave within about 30 s, and no sample adds a `stuck`. Restart the forwarder. The agents return, the acked one is idle and the hidden one stays hidden.
+- **Bad config.** Overwrite `$CFG` with invalid JSON. The `t3:` agents stay, because polling continues with the previous servers.
 
 ## Gotchas
 
-- Never copy the config or the token into evidence or logs.
-- The scratch HOME hides local transcripts, not remote servers. Remote threads change on their own, so a proof should name the thread it watched.
+- Never copy the config or the token into evidence or logs. Scan the run folder for the token before you finish.
+- Xvfb has no tray, so the tray lines can't be seen. To read them, start the app with `--inspect=<port>` and set a non-pausing logpoint on the `trayMenu` line in `src/main.js` that logs `t3servers.status()` and `t3servers.problems()`. The line number moves with edits, so look it up first.
+- On joel-linux, `safeStorage` reaches the real GNOME keyring through the D-Bus session even with a scratch HOME. Windows uses DPAPI, which this stand-in never runs.
+- Remote threads change on their own. A proof names the thread ids it watched, never their titles.
+- Pointing RoomBai at the machine it runs on shows those threads twice, once from local transcripts and once from T3.

@@ -40,4 +40,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Rooms and mess](./rooms-and-mess.md) covers per-project rooms, the room list on the roof sign, and clutter that follows agent activity.
 - [Whiteboard](./whiteboard.md) covers adding, completing and tossing todos, and the ISSUES and PRS faces.
 - [Menu and settings](./menu-and-settings.md) covers the roof menu, size, placement, roll up and the changelog.
-- [Remote T3 threads](./remote-t3-threads.md) is pending. It lands with `feat/remote-t3-threads`.
+- [Remote T3 threads](./remote-t3-threads.md) covers polling T3 servers on other machines, outages and bad config.

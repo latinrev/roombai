@@ -109,6 +109,7 @@ It sends SIGTERM to the run's process group, then SIGKILL after 5 s, and confirm
 | `scripts/doctor.sh` | `doctor.sh RUN_DIR` | Read-only health and ownership check |
 | `scripts/cdp.mjs` | `cdp.mjs RUN_DIR eval\|shot\|canvas\|click\|tap ARG` | Evaluates JS, captures screenshots and sends real clicks |
 | `scripts/stop.sh` | `stop.sh RUN_DIR` | Kills the run's process group and removes scratch, keeping evidence |
+| `scripts/forward.py` | `setsid python3 forward.py LISTEN_PORT TARGET_PORT & echo $!` | Forwards a local port to a T3 server so killing it simulates an outage. See [remote T3 threads](features/remote-t3-threads.md) |
 
 ## Linux stand-in limits
 
