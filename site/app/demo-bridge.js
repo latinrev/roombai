@@ -70,6 +70,20 @@
     }],
   };
 
+  const t3 = {
+    available: true,
+    machines: [
+      { key: 'https://build-box.example.ts.net', label: 'build-box (pretend)', url: 'https://build-box.example.ts.net', state: 'connected', expiresInDays: 28, action: null },
+      { key: 'https://old-box.example.ts.net', label: 'old-box (pretend)', url: 'https://old-box.example.ts.net', state: 'unauthorized', expiresInDays: 12, action: 'reconnect' },
+      { key: 'https://laptop.example.ts.net', label: 'laptop (pretend)', url: 'https://laptop.example.ts.net', state: 'found', action: 'connect' },
+    ],
+    toSetUp: 2,
+    open: true,
+    discovery: { missing: false, reason: '' },
+    pairing: { busy: false, message: '' },
+  };
+
+  let t3Picked = null;
   let muted = true;
   let collapsed = false;
   let snoozing = false;
@@ -89,7 +103,7 @@
       claude: { state: 'ready', windows: [{ minutes: 300, usedPercent: 28, resetsAt: now + 2 * 3600e3 }, { minutes: 10080, usedPercent: 43 }], updatedAt: now, message: 'Demo usage.' },
       codex: { state: 'ready', windows: [{ minutes: 300, usedPercent: 62, resetsAt: now + 3600e3 }, { minutes: 10080, usedPercent: 37 }], updatedAt: now, message: 'Demo usage.' },
     };
-    return { version: document.querySelector('meta[name="roombai-version"]')?.content, usage, scale: fit, muted, snoozing, collapsed, onTop: true, anchor: 'free', size: 3 };
+    return { version: document.querySelector('meta[name="roombai-version"]')?.content, usage, scale: fit, muted, snoozing, collapsed, onTop: true, anchor: 'free', size: 3, t3 };
   };
 
   window.bridge = {
@@ -104,6 +118,7 @@
       if (key === 'muted') muted = Boolean(value);
       if (key === 'snoozing') snoozing = Boolean(value);
       if (key === 'collapsed') { collapsed = Boolean(value); tellParent({ roombaCollapsed: collapsed }); }
+      if (key === 't3-expanded') t3.open = Boolean(value);
       if (listeners.config) listeners.config(cfg());
     },
     ack(id) { const a = agents.find((k) => k.id === id); if (a) { a.status = 'idle'; a.detail = DETAIL.idle; emit(); } },
@@ -115,5 +130,16 @@
     saveRooms() {},
     github: async () => gh,
     openUrl() {},
+    // Pretend pairing: Open T3 remembers the machine, and Paste link connects it (or the first one waiting).
+    t3Connect: async (key) => { t3Picked = key; return true; },
+    async t3Paste() {
+      const m = t3.machines.find((k) => k.key === t3Picked && k.action) || t3.machines.find((k) => k.action);
+      if (!m) return { message: 'Pairing failed: every pretend machine is already connected', ok: false };
+      Object.assign(m, { state: 'connected', expiresInDays: 30, action: null });
+      t3.toSetUp = t3.machines.filter((k) => k.action).length;
+      t3.pairing = { busy: false, message: `Connected ${m.label}`, ok: true };
+      if (listeners.config) listeners.config(cfg());
+      return { message: t3.pairing.message, ok: true };
+    },
   };
 })();

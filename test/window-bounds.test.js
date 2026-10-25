@@ -17,7 +17,8 @@ function desktop(scaleFactor = 1) {
       if (name === 'electron') return electron;
       if (name === 'fs') return { writeFile() {} };
       if (name === 'path') return path;
-      if (['./watcher', './github', './t3remote', './t3discover', './t3pair'].includes(name)) return {};
+      if (name === './t3pair') return require('../src/t3pair');
+      if (['./watcher', './github', './t3remote', './t3discover'].includes(name)) return {};
       throw new Error(`Unexpected dependency: ${name}`);
     },
     process: { env: {} },

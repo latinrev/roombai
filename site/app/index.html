@@ -40,6 +40,10 @@
       <div class="row"><strong id="update-message">There's a new update</strong><button id="opt-update" type="button">Install</button></div>
       <div id="update-detail" class="hint" role="status"></div>
     </div>
+    <section id="t3-section" hidden>
+      <button id="t3-toggle" type="button" aria-expanded="false" aria-controls="t3-body"><span class="t3-chev" aria-hidden="true">▸</span><strong>T3 machines</strong><span id="t3-count" class="hint"></span><span id="t3-badge" class="t3-badge" hidden></span></button>
+      <div id="t3-body" hidden></div>
+    </section>
     <label class="opt"><input type="checkbox" id="opt-ontop" /> Always on top</label>
     <label class="opt"><input type="checkbox" id="opt-sound" /> Sounds &amp; notifications</label>
     <div class="opt-row"><span>Size</span><span class="seg" id="opt-size"><button type="button" data-v="2">S</button><button type="button" data-v="3">M</button><button type="button" data-v="4">L</button></span></div>
@@ -54,6 +58,8 @@
     <div class="pop-title changelog-heading"><strong id="changelog-title">Changelog</strong><button id="changelog-close" type="button">Close</button></div>
     <div id="changelog-notes" aria-label="Recent changes" tabindex="0"></div>
   </section>
+
+  <section id="t3wiz" class="panel" aria-labelledby="t3wiz-q" hidden></section>
 
   <div id="rooms" class="panel" hidden>
     <div class="pop-title">Rooms</div>
