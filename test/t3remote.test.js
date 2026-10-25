@@ -135,6 +135,10 @@ test('protocol 3 or a 426 reports incompatible', async (t) => {
   const other = connect(t, upgraded);
   await other.remote.refresh();
   assert.equal(other.remote.status()[0].state, 'incompatible');
+
+  const odd = connect(t, await t3Server(t, { protocol: '2' }));
+  await odd.remote.refresh();
+  assert.deepEqual([odd.remote.status()[0].state, odd.remote.status()[0].error], ['incompatible', 'the server did not describe itself as a T3 server']);
 });
 
 test('an unreachable server reports unreachable', async (t) => {
