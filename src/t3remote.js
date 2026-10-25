@@ -104,7 +104,7 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
   const entries = servers.map((s) => ({
     url: trimUrl(s.url), token: s.token || '', env: null, timer: null, busy: null,
     lastOkAt: now(), cleared: false,
-    status: { url: trimUrl(s.url), label: hostOf(s.url), state: 'connecting', error: '' },
+    status: { url: trimUrl(s.url), label: hostOf(s.url), state: 'connecting', error: '', environmentId: '', expiresAt: s.expiresAt || 0 },
   }));
   let stopped = false;
 
@@ -129,7 +129,7 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
         throw new IncompatibleError(`server speaks protocol ${env?.orchestrationProtocolVersion ?? 'unknown'}, Roombai needs ${PROTOCOL}`);
       }
       e.env = { environmentId: env.environmentId, label: env.label || hostOf(e.url) };
-      e.status = { ...e.status, label: e.env.label };
+      e.status = { ...e.status, label: e.env.label, environmentId: e.env.environmentId };
     }
     const shell = await getJson(e, '/api/orchestration/shell', {
       Authorization: `Bearer ${e.token}`, 'x-t3-orchestration-protocol': String(PROTOCOL), 'Accept-Encoding': 'gzip',
@@ -226,7 +226,8 @@ function loadT3Servers({ file, fs, safeStorage }) {
       if (!token) { reject(keyring ? 'token unreadable; paste it again' : 'secure storage unavailable; restart once unlocked'); continue; }
     }
     if (!token) { reject('token is empty'); continue; }
-    servers.push({ url: entry.url, token });
+    const expiresAt = Date.parse(entry.expiresAt || '');
+    servers.push(expiresAt ? { url: entry.url, token, expiresAt } : { url: entry.url, token });
   }
   let mtimeMs;
   if (changed) {
@@ -294,4 +295,17 @@ function hostOf(url) {
   return /^[\d.]+$|^\[/.test(host) ? host : host.split('.')[0];
 }
 
-module.exports = { agentsFromShell, createT3Remote, createT3Servers, loadT3Servers, redact };
+const DAY = 864e5;
+const RECONNECT_MS = 3 * DAY;
+
+// One tray line per server. A rejected key, or one that runs out within 3 days, asks for a reconnect.
+function describeServer(s, now = Date.now()) {
+  const left = s.expiresAt ? s.expiresAt - now : Infinity;
+  let note = s.error;
+  if (!note && left <= 0) note = 'key expired';
+  else if (!note && left < DAY) note = `key expires in ${Math.ceil(left / 36e5)} h`;
+  else if (!note && left < Infinity) note = `key expires in ${Math.round(left / DAY)} d`;
+  return { text: `${s.label}: ${s.state}${note ? ` (${note})` : ''}`, reconnect: s.state === 'unauthorized' || left <= RECONNECT_MS };
+}
+
+module.exports = { PROTOCOL, agentsFromShell, createT3Remote, createT3Servers, describeServer, loadT3Servers, redact, trimUrl, urlProblem, writeAtomic };

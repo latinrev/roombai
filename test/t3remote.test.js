@@ -84,7 +84,7 @@ test('remote threads become roombas with the right status, project and machine',
     { id: 't3:env-1:fork', status: 'working', title: 'Try another layout', project: 'garden-app', machine: 'build-box', provider: 'claude' },
     { id: 't3:env-1:run', status: 'working', title: 'Add seed catalog', project: 'garden-app', machine: 'build-box', provider: 'codex' },
   ]);
-  assert.deepEqual(remote.status(), [{ url: server.url, label: 'build-box', state: 'ok', error: '' }]);
+  assert.deepEqual(remote.status(), [{ url: server.url, label: 'build-box', state: 'ok', error: '', environmentId: 'env-1', expiresAt: 0 }]);
   const shellRequest = server.requests.find((r) => r.url === '/api/orchestration/shell');
   assert.equal(shellRequest.headers['x-t3-orchestration-protocol'], '2');
   assert.match(shellRequest.headers['accept-encoding'], /gzip/);
