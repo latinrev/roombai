@@ -207,11 +207,10 @@ function openPairPage(url, label) {
   else void dialog.showMessageBox({ type: 'info', title: `Connect ${label}`, message: body });
 }
 
-// A server can change address or leave the tailnet between passes, so look again before opening it.
-async function connectServer(d) {
-  await discover();
-  const now = discovery.servers.find((s) => s.environmentId === d.environmentId);
-  openPairPage((now || d).url, d.label);
+// The page opens at once from the last pass; the fresh pass corrects the tray if the server moved.
+function connectServer(d) {
+  openPairPage(d.url, d.label);
+  void discover();
 }
 
 function showPairMessage(text) {
@@ -227,11 +226,13 @@ async function pastePairingLink() {
   try {
     const text = clipboard.readText();
     showPairMessage('Pairing…');
-    await discover();
-    const statuses = t3servers.status();
-    const candidates = [...unconnected(discovery.servers, statuses).filter((d) => d.compatible).map((d) => d.url),
-      ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
-    const result = await pairT3({ text, file: t3File(), fs, safeStorage, candidates, statuses });
+    const findCandidates = async () => {
+      await discover();
+      const statuses = t3servers.status();
+      return [...unconnected(discovery.servers, statuses).filter((d) => d.compatible).map((d) => d.url),
+        ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
+    };
+    const result = await pairT3({ text, file: t3File(), fs, safeStorage, findCandidates, statuses: t3servers.status() });
     if (!result.problem) t3servers.reload();
     showPairMessage(result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`);
   } finally {

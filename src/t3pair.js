@@ -31,11 +31,12 @@ function parsePairingLink(text) {
 
 const isLoopback = (host) => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/.test(new URL(host).hostname);
 
-// candidates: URLs of servers found on the tailnet but not connected, or asking for a reconnect.
-// A link made on the server itself says localhost, so it can only mean the one candidate. That is a
-// guess: the link may have come from a machine Roombai never found.
-function resolveHost(host, candidates) {
+// findCandidates resolves to the URLs of servers found on the tailnet but not connected, or asking
+// for a reconnect. A link made on the server itself says localhost, so it can only mean the one
+// candidate. That is a guess: the link may have come from a machine Roombai never found.
+async function resolveHost(host, findCandidates) {
   if (host && !isLoopback(host)) return { url: host, guessed: false };
+  const candidates = await findCandidates();
   if (candidates.length === 1) return { url: candidates[0], guessed: true };
   const where = host ? 'the link points at the server\'s own machine' : 'a bare pairing code does not say which server';
   return { problem: `${where}; make the link from its Tailscale address` };
@@ -90,11 +91,11 @@ function pairT3(options) {
   return inFlight.get(parsed.credential);
 }
 
-async function pairOnce({ host, credential }, { file, fs, safeStorage, candidates = [], statuses = [], fetch = globalThis.fetch,
+async function pairOnce({ host, credential }, { file, fs, safeStorage, findCandidates = async () => [], statuses = [], fetch = globalThis.fetch,
   now = Date.now, platform = process.platform }) {
   const secrets = [credential];
   try {
-    const target = resolveHost(host, candidates);
+    const target = await resolveHost(host, findCandidates);
     if (target.problem) return { problem: target.problem };
     const { url } = target;
     const badUrl = urlProblem(url);

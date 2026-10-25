@@ -82,7 +82,8 @@ for (const [name, link] of [
     const fetch = routed({ [BOX]: server.local });
     const file = configFile(t);
     const before = Date.now();
-    assert.deepEqual(await pairT3({ text: ` ${link}\n`, file, fs, safeStorage, fetch, platform: 'win32' }), { label: 'build-box', url: BOX });
+    const findCandidates = async () => assert.fail('a link that names its server runs no discovery');
+    assert.deepEqual(await pairT3({ text: ` ${link}\n`, file, fs, safeStorage, fetch, findCandidates, platform: 'win32' }), { label: 'build-box', url: BOX });
     assert.ok(!fs.readFileSync(file, 'utf8').includes('"token"'), 'the first write already holds only the sealed token');
     assert.deepEqual(server.forms, [{
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: CRED,
@@ -110,13 +111,13 @@ test('a link made on the server itself pairs with the one server found on the ta
   const fetch = routed({ [BOX]: server.local });
   const file = configFile(t);
   const local = `http://localhost:3773/pair#token=${CRED}`;
-  assert.deepEqual(await pairT3({ text: local, file, fs, fetch, candidates: [] }),
+  assert.deepEqual(await pairT3({ text: local, file, fs, fetch, findCandidates: async () => [] }),
     { problem: 'the link points at the server\'s own machine; make the link from its Tailscale address' });
-  assert.deepEqual(await pairT3({ text: CRED, file, fs, fetch, candidates: [BOX, 'https://other.tail.ts.net'] }),
+  assert.deepEqual(await pairT3({ text: CRED, file, fs, fetch, findCandidates: async () => [BOX, 'https://other.tail.ts.net'] }),
     { problem: 'a bare pairing code does not say which server; make the link from its Tailscale address' });
   assert.equal(fs.existsSync(file), false, 'nothing saved and no credential spent');
   assert.deepEqual(server.forms, []);
-  assert.deepEqual(await pairT3({ text: local, file, fs, fetch, candidates: [BOX] }), { label: 'build-box', url: BOX });
+  assert.deepEqual(await pairT3({ text: local, file, fs, fetch, findCandidates: async () => [BOX] }), { label: 'build-box', url: BOX });
 });
 
 test('a guessed server that rejects the credential says the link may be from another machine', async (t) => {
@@ -124,8 +125,8 @@ test('a guessed server that rejects the credential says the link may be from ano
   const fetch = routed({ [BOX]: server.local });
   const file = configFile(t);
   const guessed = { problem: 'this link may belong to another machine; make it from that machine\'s T3 or paste the full link' };
-  assert.deepEqual(await pairT3({ text: `http://localhost:3773/pair#token=${CRED}`, file, fs, fetch, candidates: [BOX] }), guessed);
-  assert.deepEqual(await pairT3({ text: CRED.toLowerCase(), file, fs, fetch, candidates: [BOX] }), guessed);
+  assert.deepEqual(await pairT3({ text: `http://localhost:3773/pair#token=${CRED}`, file, fs, fetch, findCandidates: async () => [BOX] }), guessed);
+  assert.deepEqual(await pairT3({ text: CRED.toLowerCase(), file, fs, fetch, findCandidates: async () => [BOX] }), guessed);
   assert.equal(server.forms[1].subject_token, CRED, 'a lower-case code is sent in T3\'s upper case');
   assert.deepEqual(await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, fetch }),
     { problem: 'that pairing link is used up or expired; make a new one' });
