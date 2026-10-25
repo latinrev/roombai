@@ -288,7 +288,6 @@ test('a server back after more than 12 hours starts its roombas fresh', async (t
   assert.deepEqual(room(), [['long', 'working', 1]], 'the hide from before the outage is forgotten');
 });
 
-// Stands in for Electron's safeStorage: "enc:" ciphertext, and a token named "boom" fails to encrypt.
 const safeStorage = {
   isEncryptionAvailable: () => true,
   encryptString: (text) => { if (text === 'boom') throw new Error('keychain locked'); return Buffer.from('enc:' + text); },
@@ -381,7 +380,6 @@ test('t3-servers.json: without secure storage, plaintext tokens work and stored 
   assert.deepEqual(loadT3Servers({ file, fs, safeStorage: { isEncryptionAvailable: () => false } }), expected);
   assert.equal(fs.readFileSync(file, 'utf8'), before);
 
-  // Linux with no keyring: encryption "works" with a fixed key, and keyring ciphertext can't be read.
   const basicText = { ...safeStorage, getSelectedStorageBackend: () => 'basic_text', decryptString: () => { throw new Error('no keyring'); } };
   const loaded = loadT3Servers({ file, fs, safeStorage: basicText });
   assert.deepEqual(loaded.problems, expected.problems);

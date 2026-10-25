@@ -1,5 +1,3 @@
-// Read-only polling of remote T3 Code servers. Each remote thread becomes an agent record
-// that carries T3's own status, so the Watcher's ack and hide apply but its transcript rules don't.
 const crypto = require('crypto');
 const path = require('path');
 const { newAgent, firstLine, RECENT_FILE_MS } = require('./watcher');
@@ -7,10 +5,8 @@ const { newAgent, firstLine, RECENT_FILE_MS } = require('./watcher');
 const POLL_MS = 10e3;
 const TIMEOUT_MS = 8e3;
 const PROTOCOL = 2;
-// A server with no good poll for this long loses its roombas. An outage is not an agent status.
 const STALE_MS = 3 * POLL_MS;
 
-// T3 awareness phase -> room status, with both waiting phases shown as waiting.
 const ROOM_STATUS = { starting: 'working', running: 'working', waiting_for_input: 'waiting',
   waiting_for_approval: 'waiting', completed: 'done', failed: 'stuck' };
 const LIVE_RUN = new Set(['preparing', 'starting', 'running']);
@@ -50,7 +46,6 @@ function providerOf(thread) {
   return 'custom';
 }
 
-// server: { environmentId, label }. recall(id, now): that agent's record from earlier polls, if any.
 function agentsFromShell(shell, server, now, recall = () => undefined) {
   const projects = new Map((shell?.projects || []).map((p) => [p.id, p.title || '']));
   const out = [];
@@ -90,7 +85,6 @@ function agentsFromShell(shell, server, now, recall = () => undefined) {
   return out;
 }
 
-// Every error string passes through here before it is stored, logged or shown.
 function redact(message, secrets) {
   let s = String(message || 'error');
   for (const secret of secrets) if (secret) s = s.split(secret).join('[token]');
@@ -105,7 +99,6 @@ class IncompatibleError extends Error {}
 
 const trimUrl = (url) => String(url).replace(/\/+$/, '');
 
-// servers: [{ url, token }]. onAgents(url, agents) after each good poll; onStatus() when a status changes.
 function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now, onAgents = () => {},
   onStatus = () => {}, recall } = {}) {
   const entries = servers.map((s) => ({
@@ -162,7 +155,6 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
     }
   }
 
-  // One request per server at a time: a refresh during a poll waits for that poll.
   function pollOnce(e) {
     if (!e.busy) e.busy = poll(e).finally(() => { e.busy = null; });
     return e.busy;
@@ -191,10 +183,6 @@ function urlProblem(raw) {
   return 'use https; http is only for localhost and Tailscale 100.x addresses';
 }
 
-// t3-servers.json: [{ "url": "https://host.tailnet.ts.net", "token": "..." }]. Plaintext tokens are swapped
-// for safeStorage ciphertext as they are read. mtimeMs is set when this call rewrote the file, and retry
-// when a token is still plain text and a later load should try again. servers is null when the file
-// can't be read or parsed, which may be a half-saved edit.
 function loadT3Servers({ file, fs, safeStorage }) {
   const name = path.basename(file);
   let list;
@@ -214,7 +202,6 @@ function loadT3Servers({ file, fs, safeStorage }) {
   let changed = false;
   let retry = false;
   for (const [i, entry] of list.entries()) {
-    // A bad URL may be a pasted token, so it is never shown.
     let label = `entry ${i + 1}`;
     const reject = (reason) => problems.push({ label, reason });
     if (!entry || typeof entry !== 'object') { reject('expected an object with url and token'); continue; }
@@ -251,8 +238,6 @@ function loadT3Servers({ file, fs, safeStorage }) {
   return { servers, problems, mtimeMs, retry };
 }
 
-// Owns the pollers for one t3-servers.json. reload() rereads it: an unchanged list keeps its pollers,
-// and a file that can't be read keeps the last good list.
 function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, fetch, now }) {
   let remote = null;
   let key = null;
@@ -282,7 +267,6 @@ function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, 
 
   return {
     reload,
-    // mtime of the app's own rewrite of the file, which must not trigger a reload
     ownWrite: () => ownWrite,
     status: () => remote?.status() || [],
     problems: () => problems,
@@ -291,8 +275,6 @@ function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, 
   };
 }
 
-// Each step that can fail names its own problem. Without an mtime the file watcher sees this write as an
-// edit, and the reload finds nothing changed.
 function writeAtomic(fs, file, text) {
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomBytes(6).toString('hex')}.tmp`);
   try {
@@ -306,7 +288,6 @@ function writeAtomic(fs, file, text) {
   try { return { mtimeMs: fs.statSync(file).mtimeMs }; } catch { return {}; }
 }
 
-// The machine name from a URL: the first label of a host name, or a whole IP address.
 function hostOf(url) {
   let host;
   try { host = new URL(url).hostname; } catch { return String(url); }

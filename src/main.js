@@ -171,8 +171,6 @@ function buildTray() {
   tray.on('click', () => setOption('hidden', win.isVisible()));
 }
 
-// Remote T3 Code servers to watch, from t3-servers.json: [{ "url": "https://host.tailnet.ts.net", "token": "..." }].
-// Dev runs only poll a server when ROOMBAI_T3_SERVERS names a test config.
 function t3File() {
   if (process.env.ROOMBAI_T3_SERVERS) return process.env.ROOMBAI_T3_SERVERS;
   if (process.env.ROOM_SHOT || process.argv.includes('--demo')) return null;

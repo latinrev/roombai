@@ -42,7 +42,7 @@ function newAgent(id, provider) {
     acked: false,
     hidden: false,
     manualStatus: null,
-    remoteStatus: null, // set by a remote server that reports status itself; skips the transcript rules
+    remoteStatus: null,
     lastAssistantTextAt: 0,
   };
 }
@@ -56,8 +56,7 @@ class Watcher extends EventEmitter {
   constructor({ demo = false } = {}) {
     super();
     this.agents = new Map();
-    // Remote agents that left the room, so an ack, hide or turn count outlives an outage or a reload.
-    this.departed = new Map(); // id -> agent, with departedAt
+    this.departed = new Map();
     this.files = new Map(); // path -> { offset, rest, agentId, kind }
     this.demo = demo;
     this.lastSnapshot = '';
@@ -322,7 +321,6 @@ class Watcher extends EventEmitter {
     if (a) { a.hidden = true; this.publish(); }
   }
 
-  // Replace one remote server's agents with its latest poll; threads it no longer lists leave.
   setRemoteAgents(source, list, now = Date.now()) {
     const ids = new Set(list.map((a) => a.id));
     for (const [id, a] of this.agents) {
@@ -333,7 +331,6 @@ class Watcher extends EventEmitter {
     this.publish();
   }
 
-  // The last record of a remote agent, in the room or departed within RECENT_FILE_MS.
   recall(id, now = Date.now()) {
     const gone = this.departed.get(id);
     if (gone && now - gone.departedAt > RECENT_FILE_MS) this.departed.delete(id);
