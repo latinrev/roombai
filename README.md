@@ -165,15 +165,15 @@ List only other machines. Roombai already shows the T3 Code threads on the machi
 
 #### Connect from the tray
 
-When this machine and the T3 machine share a Tailscale tailnet, Roombai finds the server for you. At startup and every 5 minutes it asks the Tailscale CLI for online peers and checks each one for a T3 server, on its `https://<name>.ts.net` address and on its `100.x` address at port 3773. Without Tailscale, no servers are found and the tray skips this part.
+When this machine and the T3 machine share a Tailscale tailnet, Roombai finds the server for you. At startup, every 5 minutes, and whenever you choose **Connect** or **Paste T3 pairing link**, it asks the Tailscale CLI for online peers and checks each one for a T3 server, on its `https://<name>.ts.net` address and on its `100.x` address at port 3773. It checks only machines signed in to your own Tailscale account, so machines other people share with you are skipped. A server that runs a T3 version Roombai cannot read gets a tray line but no **Connect** item. When Tailscale is missing or stopped, the tray says so in one line, such as `Finding T3 servers: Tailscale not found`.
 
-1. In the tray menu, choose **Connect <machine>...** for the server you want. It opens that server's **Settings > Connections** page in your browser.
+1. In the tray menu, choose **Connect <machine>...** for the server you want. It opens that server's **Settings > Connections** page in your browser, and a notification repeats the next steps.
 2. Choose **Create pairing link** and copy the link.
 3. In the tray menu, choose **Paste T3 pairing link**. Roombai reads the clipboard once, when you click, and never watches it.
 
 Roombai trades the one-time link for a read-only `orchestration:read` key and saves it, encrypted, in `t3-servers.json`. It refuses a key with any other scope. Within 10 seconds the threads appear in the room and the tray shows a line such as `joel-linux: ok (key expires in 30 d)`.
 
-Roombai reads three kinds of links: `https://<host>/pair#token=...`, the hosted `https://app.t3.codes/pair?host=<host>#token=...`, and a bare 12-character pairing code. A link made for `localhost` on the T3 machine, or a bare code, goes to the one server that is waiting to connect. When more than one is waiting, make the link from the server's Tailscale address instead.
+Roombai reads three kinds of links: `https://<host>/pair#token=...`, the hosted `https://app.t3.codes/pair?host=<host>#token=...`, and a bare 12-character pairing code, in either case. A link made for `localhost` on the T3 machine, or a bare code, goes to the one server that is waiting to connect. When more than one is waiting, make the link from the server's Tailscale address instead. If that server rejects the code, the tray says the link may belong to another machine. Make the link in that machine's T3, or paste the full link.
 
 If the browser asks for a pairing code instead of showing the settings page, the browser is not signed in to that server. Make the link in the T3 app where that machine is connected, or on the T3 machine run:
 
