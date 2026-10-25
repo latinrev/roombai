@@ -84,7 +84,7 @@ test('remote threads become roombas with the right status, project and machine',
     { id: 't3:env-1:fork', status: 'working', title: 'Try another layout', project: 'garden-app', machine: 'build-box', provider: 'claude' },
     { id: 't3:env-1:run', status: 'working', title: 'Add seed catalog', project: 'garden-app', machine: 'build-box', provider: 'codex' },
   ]);
-  assert.deepEqual(remote.status(), [{ url: server.url, label: 'build-box', state: 'ok', error: '' }]);
+  assert.deepEqual(remote.status(), [{ url: server.url, label: 'build-box', state: 'ok', error: '', environmentId: 'env-1', expiresAt: 0 }]);
   const shellRequest = server.requests.find((r) => r.url === '/api/orchestration/shell');
   assert.equal(shellRequest.headers['x-t3-orchestration-protocol'], '2');
   assert.match(shellRequest.headers['accept-encoding'], /gzip/);
@@ -135,6 +135,10 @@ test('protocol 3 or a 426 reports incompatible', async (t) => {
   const other = connect(t, upgraded);
   await other.remote.refresh();
   assert.equal(other.remote.status()[0].state, 'incompatible');
+
+  const odd = connect(t, await t3Server(t, { protocol: '2' }));
+  await odd.remote.refresh();
+  assert.deepEqual([odd.remote.status()[0].state, odd.remote.status()[0].error], ['incompatible', 'the server did not describe itself as a T3 server']);
 });
 
 test('an unreachable server reports unreachable', async (t) => {

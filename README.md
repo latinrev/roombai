@@ -163,6 +163,30 @@ Roombai can also watch T3 Code threads that run on other machines. Each top-leve
 
 List only other machines. Roombai already shows the T3 Code threads on the machine it runs on, from their local transcripts, so adding that machine's server shows each of its threads twice.
 
+#### Connect from the tray
+
+When this machine and the T3 machine share a Tailscale tailnet, Roombai finds the server for you. At startup, every 5 minutes, and after you choose **Connect**, it asks the Tailscale CLI for online peers and checks each one for a T3 server, on its `https://<name>.ts.net` address and on its `100.x` address at port 3773. It checks only machines signed in to your own Tailscale account and tagged machines in your own tailnet, so machines other people share with you are skipped. A server that runs a T3 version Roombai cannot read gets a tray line but no **Connect** item. When Tailscale is stopped, the tray says so in one line, such as `Finding T3 servers: Tailscale not running`. When Tailscale is missing, the tray says so only if `t3-servers.json` has an entry, even one with a problem.
+
+1. In the tray menu, choose **Connect <machine>...** for the server you want. It opens that server's **Settings > Connections** page in your browser, and a notification repeats the next steps.
+2. Choose **Create pairing link** and copy the link.
+3. In the tray menu, choose **Paste T3 pairing link**. Roombai reads the clipboard once, when you click, and never watches it.
+
+Roombai trades the one-time link for a read-only `orchestration:read` key and saves it, encrypted, in `t3-servers.json`. It refuses a key with any other scope. Within 10 seconds the threads appear in the room and the tray shows a line such as `joel-linux: ok (key expires in 30 d)`.
+
+Roombai reads three kinds of links: `https://<host>/pair#token=...`, the hosted `https://app.t3.codes/pair?host=<host>#token=...`, and a bare 12-character pairing code, in either case. A link made for `localhost` on the T3 machine, or a bare code, goes to the one server on your own machines that is waiting to connect, so Roombai checks the tailnet again first. Roombai never sends it to a tagged machine. When more than one is waiting, or the server is tagged, make the link from the server's Tailscale address instead. If that server rejects the code, the tray says the link may belong to another machine. Make the link in that machine's T3, or paste the full link.
+
+If the browser asks for a pairing code instead of showing the settings page, the browser is not signed in to that server. Make the link in the T3 app where that machine is connected, or on the T3 machine run:
+
+```bash
+t3 auth pairing create --scope orchestration:read --ttl 5m --base-url https://your-host.your-tailnet.ts.net
+```
+
+The key lasts 30 days, and T3 does not renew it. From 3 days before it runs out, or as soon as the server rejects it, the tray shows **Reconnect <machine>...**. Choose it, make a new link, and paste it the same way. The new key replaces the old entry.
+
+#### Add a server by hand
+
+The tray flow writes the same file you can edit yourself. Use this when the machines don't share a tailnet.
+
 1. On the machine that runs T3 Code, issue a read-only token:
 
    ```bash
@@ -176,7 +200,9 @@ List only other machines. Roombai already shows the T3 Code threads on the machi
    [{ "url": "https://your-host.your-tailnet.ts.net", "token": "paste-the-token-here" }]
    ```
 
-The URL must use `https`. Plain `http` works only for `localhost`, `127.0.0.1` and Tailscale `100.x` addresses. Roombai reloads the file when it changes. If a save leaves the file unreadable, Roombai keeps watching the servers it already had and lists the problem in the tray. When Electron can encrypt, Roombai replaces `token` with an encrypted `tokenEnc`. On macOS the Keychain holds the key, on Windows DPAPI does, and on Linux the system keyring does. On Linux without a keyring, Electron's `basic_text` backend still writes `tokenEnc`, but it seals the token with a fixed key built into Electron. Anyone who can read the file can recover the token, so keep the file readable only by you. The tray lists each server with its state: `ok`, `unauthorized`, `incompatible` or `unreachable`. It also lists each entry it rejected and why. When a server has no good check for 30 seconds, its roombas leave the room until it answers again. The token expires after 30 days. When the tray shows `unauthorized` or `token unreadable`, issue a new token and paste it in again. When it shows `secure storage unavailable`, unlock the system keyring and restart Roombai.
+   An entry may also hold `"expiresAt"` as an ISO date, which turns on the expiry line and the reconnect reminder.
+
+The URL must use `https`. Plain `http` works only for `localhost`, `127.0.0.1` and Tailscale `100.x` addresses. Roombai reloads the file when it changes. If a save leaves the file unreadable, Roombai keeps watching the servers it already had and lists the problem in the tray. When Electron can encrypt, Roombai replaces `token` with an encrypted `tokenEnc`. On macOS the Keychain holds the key, on Windows DPAPI does, and on Linux the system keyring does. On Linux without a keyring, Electron's `basic_text` backend still writes `tokenEnc`, but it seals the token with a fixed key built into Electron. Anyone who can read the file can recover the token, so keep the file readable only by you. The tray lists each server with its state: `ok`, `unauthorized`, `incompatible` or `unreachable`. It also lists each entry it rejected and why. When a server has no good check for 30 seconds, its roombas leave the room until it answers again. When the tray shows `unauthorized` or `token unreadable`, reconnect or issue a new token. When it shows `secure storage unavailable`, unlock the system keyring and restart Roombai.
 
 ### GitHub issues and pull requests
 

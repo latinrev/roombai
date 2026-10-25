@@ -99,12 +99,31 @@ class IncompatibleError extends Error {}
 
 const trimUrl = (url) => String(url).replace(/\/+$/, '');
 
+async function fetchEnvironment(fetch, url, timeoutMs) {
+  const res = await fetch(trimUrl(url) + '/.well-known/t3/environment', { headers: { Accept: 'application/json' }, redirect: 'error',
+    signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new HttpError(res.status);
+  const env = await res.json().catch(() => null);
+  if (typeof env?.environmentId !== 'string' || !env.environmentId || typeof env.orchestrationProtocolVersion !== 'number') {
+    throw new IncompatibleError('the server did not describe itself as a T3 server');
+  }
+  return { environmentId: env.environmentId, label: typeof env.label === 'string' && env.label ? env.label : hostOf(url),
+    protocol: env.orchestrationProtocolVersion };
+}
+
+function sealToken(safeStorage, token) {
+  let available;
+  try { available = safeStorage.isEncryptionAvailable(); } catch { return null; }
+  if (!available) return '';
+  try { return safeStorage.encryptString(token).toString('base64'); } catch { return null; }
+}
+
 function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now, onAgents = () => {},
   onStatus = () => {}, recall } = {}) {
   const entries = servers.map((s) => ({
     url: trimUrl(s.url), token: s.token || '', env: null, timer: null, busy: null,
     lastOkAt: now(), cleared: false,
-    status: { url: trimUrl(s.url), label: hostOf(s.url), state: 'connecting', error: '' },
+    status: { url: trimUrl(s.url), label: hostOf(s.url), state: 'connecting', error: '', environmentId: '', expiresAt: s.expiresAt || 0 },
   }));
   let stopped = false;
 
@@ -124,12 +143,10 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
 
   async function fetchAgents(e) {
     if (!e.env) {
-      const env = await getJson(e, '/.well-known/t3/environment');
-      if (env?.orchestrationProtocolVersion !== PROTOCOL || !env.environmentId) {
-        throw new IncompatibleError(`server speaks protocol ${env?.orchestrationProtocolVersion ?? 'unknown'}, Roombai needs ${PROTOCOL}`);
-      }
-      e.env = { environmentId: env.environmentId, label: env.label || hostOf(e.url) };
-      e.status = { ...e.status, label: e.env.label };
+      const env = await fetchEnvironment(fetch, e.url, TIMEOUT_MS);
+      if (env.protocol !== PROTOCOL) throw new IncompatibleError(`server speaks protocol ${env.protocol}, Roombai needs ${PROTOCOL}`);
+      e.env = { environmentId: env.environmentId, label: env.label };
+      e.status = { ...e.status, label: env.label, environmentId: env.environmentId };
     }
     const shell = await getJson(e, '/api/orchestration/shell', {
       Authorization: `Bearer ${e.token}`, 'x-t3-orchestration-protocol': String(PROTOCOL), 'Accept-Encoding': 'gzip',
@@ -213,11 +230,12 @@ function loadT3Servers({ file, fs, safeStorage }) {
     if (entry.token !== undefined && typeof entry.token !== 'string') { reject('token must be a string'); continue; }
     let token = (entry.token || '').trim();
     if (token && canEncrypt) {
-      try {
-        entry.tokenEnc = safeStorage.encryptString(token).toString('base64');
+      const sealed = sealToken(safeStorage, token);
+      if (sealed) {
+        entry.tokenEnc = sealed;
         delete entry.token;
         changed = true;
-      } catch {
+      } else {
         retry = true;
         problems.push({ label, reason: 'could not encrypt the token; it stays in plain text for now' });
       }
@@ -226,7 +244,8 @@ function loadT3Servers({ file, fs, safeStorage }) {
       if (!token) { reject(keyring ? 'token unreadable; paste it again' : 'secure storage unavailable; restart once unlocked'); continue; }
     }
     if (!token) { reject('token is empty'); continue; }
-    servers.push({ url: entry.url, token });
+    const expiresAt = Date.parse(entry.expiresAt || '');
+    servers.push(expiresAt ? { url: entry.url, token, expiresAt } : { url: entry.url, token });
   }
   let mtimeMs;
   if (changed) {
@@ -294,4 +313,17 @@ function hostOf(url) {
   return /^[\d.]+$|^\[/.test(host) ? host : host.split('.')[0];
 }
 
-module.exports = { agentsFromShell, createT3Remote, createT3Servers, loadT3Servers, redact };
+const DAY = 864e5;
+const RECONNECT_MS = 3 * DAY;
+
+function describeServer(s, now = Date.now()) {
+  const left = s.expiresAt ? s.expiresAt - now : Infinity;
+  let note = s.error;
+  if (!note && left <= 0) note = 'key expired';
+  else if (!note && left < DAY) note = `key expires in ${Math.ceil(left / 36e5)} h`;
+  else if (!note && left < Infinity) note = `key expires in ${Math.round(left / DAY)} d`;
+  return { text: `${s.label}: ${s.state}${note ? ` (${note})` : ''}`, reconnect: s.state === 'unauthorized' || left <= RECONNECT_MS };
+}
+
+module.exports = { HttpError, IncompatibleError, PROTOCOL, agentsFromShell, createT3Remote, createT3Servers, describeServer, fetchEnvironment,
+  hostOf, loadT3Servers, redact, sealToken, trimUrl, urlProblem, writeAtomic };

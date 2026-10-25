@@ -1,6 +1,6 @@
 # Remote T3 threads
 
-RoomBai polls T3 Code servers on other machines. Each top-level remote thread becomes a roomba, and its card names the machine it runs on. The code is `src/t3remote.js`.
+RoomBai polls T3 Code servers on other machines. Each top-level remote thread becomes a roomba, and its card names the machine it runs on. Polling is `src/t3remote.js`, tailnet discovery is `src/t3discover.js` and pairing is `src/t3pair.js`.
 
 ## Sub-features
 
@@ -9,6 +9,9 @@ RoomBai polls T3 Code servers on other machines. Each top-level remote thread be
 - `t3-status` copies T3's own `projectThreadAwarenessV2` rules into a roomba status.
 - `t3-outage` removes a server's roombas after 30 s without a good poll. Ack and hide survive the outage.
 - `t3-problems` lists each bad config entry as a disabled tray line. Invalid JSON keeps the previous servers polling.
+- `t3-discover` finds T3 servers on the user's own online Tailscale peers and the tagged peers of their tailnet. It runs at startup, every 5 minutes, after Connect opens the page, and before a Paste of a bare code or a localhost link. Each compatible one not in the config gets a `Connect <label>...` tray line. A discovery problem shows as `Finding T3 servers: <reason>`, except `Tailscale not found` while the config has no entries. A bare code or localhost link is guessed only onto the user's own machines, never a tagged one.
+- `t3-pair` turns a pasted pairing link into an `orchestration:read` entry with `tokenEnc` and `expiresAt`.
+- `t3-expiry` adds `(key expires in N d)` to the status line, and a `Reconnect <label>...` line from 3 days before expiry or on a 401.
 
 ## How to get to it (user POV)
 
@@ -17,6 +20,15 @@ RoomBai polls T3 Code servers on other machines. Each top-level remote thread be
 - Remote threads appear in the room within 10 s. The tray shows one `<machine>: ok` line per server.
 
 ## Driving it with cdp.mjs and curl
+
+### Tray lines and pairing
+
+- Launch with `ROOMBAI_T3_SERVERS=$D/t3-servers.json` (a missing file is fine) and an extra `--inspect=<port>` argument.
+- Over the inspector, set a conditional breakpoint on the first line inside `trayMenu` in `src/main.js`. The condition runs in that frame, so `(console.log('TRAY ' + JSON.stringify(t3Lines().map((l) => l.label))), false)` prints the T3 lines to `app.log` without pausing. Trigger a rebuild from the renderer with `$CDP eval "bridge.setOption('muted', false)"`. The breakpoint lasts only while the inspector session stays open.
+- To pair, make a 5-minute link on the T3 host with `t3 auth pairing create --ttl 5m --base-url <url> --json`, and write its `pairUrl` to a 0600 file without printing it. Use a one-shot condition that calls `clipboard.writeText(fs.readFileSync(<file>, 'utf8'))`, then `pastePairingLink()`, then `clipboard.clear()`. The tray then reads `<label>: ok (key expires in 30 d)` and the config holds `url`, `expiresAt` and `tokenEnc`.
+- Revoke the new session on the host with `t3 auth session revoke <id>`. Within one poll the tray reads `unauthorized` with a `Reconnect <label>...` line.
+
+### Polling
 
 Preconditions:
 
