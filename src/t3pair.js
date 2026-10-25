@@ -77,22 +77,13 @@ async function exchange({ url, guessed, credential, fetch, platform }) {
   return { token: json.access_token, expiresIn: json.expires_in };
 }
 
-const inFlight = new Map();
-
 // Turns a pasted pairing link into a read-only entry in t3-servers.json, with the token sealed when
 // safeStorage can encrypt. statuses: the configured servers, so a re-pair replaces their old entry.
-// Pasting a link that is still being exchanged shares that exchange, so it cannot report "used up".
-function pairT3(options) {
-  const parsed = parsePairingLink(options.text);
-  if (parsed.problem) return Promise.resolve({ problem: parsed.problem });
-  if (!inFlight.has(parsed.credential)) {
-    inFlight.set(parsed.credential, pairOnce(parsed, options).finally(() => inFlight.delete(parsed.credential)));
-  }
-  return inFlight.get(parsed.credential);
-}
-
-async function pairOnce({ host, credential }, { file, fs, safeStorage, findCandidates = async () => [], statuses = [], fetch = globalThis.fetch,
+async function pairT3({ text, file, fs, safeStorage, findCandidates = async () => [], statuses = [], fetch = globalThis.fetch,
   now = Date.now, platform = process.platform }) {
+  const parsed = parsePairingLink(text);
+  if (parsed.problem) return { problem: parsed.problem };
+  const { host, credential } = parsed;
   const secrets = [credential];
   try {
     const target = await resolveHost(host, findCandidates);

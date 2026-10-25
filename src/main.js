@@ -188,7 +188,10 @@ function t3Lines() {
     if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url, s.label) });
   }
   for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
-  if (discovery.reason) lines.push({ label: `Finding T3 servers: ${discovery.reason}`, enabled: false });
+  // Without Tailscale and without a configured server, the user is not using remote T3 at all.
+  if (discovery.reason && (discovery.reason !== 'Tailscale not found' || statuses.length)) {
+    lines.push({ label: `Finding T3 servers: ${discovery.reason}`, enabled: false });
+  }
   for (const d of unconnected(discovery.servers, statuses)) {
     lines.push(d.compatible ? { label: `Connect ${d.label}…`, click: () => connectServer(d) }
       : { label: `${d.label}: runs a T3 version Roombai cannot read`, enabled: false });
@@ -233,8 +236,11 @@ async function pastePairingLink() {
         ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
     };
     const result = await pairT3({ text, file: t3File(), fs, safeStorage, findCandidates, statuses: t3servers.status() });
-    if (!result.problem) t3servers.reload();
-    showPairMessage(result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`);
+    let message = result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`;
+    if (!result.problem) {
+      try { t3servers.reload(); } catch { message = `Saved ${result.label}, but it could not be loaded; restart Roombai`; }
+    }
+    showPairMessage(message);
   } finally {
     pairing = false;
   }

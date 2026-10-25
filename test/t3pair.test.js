@@ -181,17 +181,6 @@ test('an entry added by hand during the exchange is kept', async (t) => {
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).map((e) => e.url), ['https://old.ts.net', 'https://hand.ts.net', BOX]);
 });
 
-test('pasting the same link twice at once shares one exchange and both say connected', async (t) => {
-  const server = await t3Server(t, { onExchange: () => new Promise((resolve) => setTimeout(resolve, 50)) });
-  const fetch = routed({ [BOX]: server.local });
-  const file = configFile(t);
-  const link = `${BOX}/pair#token=${CRED}`;
-  const results = await Promise.all([pairT3({ text: link, file, fs, safeStorage, fetch }), pairT3({ text: ` ${link}`, file, fs, safeStorage, fetch })]);
-  assert.deepEqual(results, [{ label: 'build-box', url: BOX }, { label: 'build-box', url: BOX }]);
-  assert.equal(server.forms.length, 1);
-  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).length, 1);
-});
-
 test('a used pairing link gives a clear problem without the credential', async (t) => {
   const server = await t3Server(t);
   const fetch = routed({ [BOX]: server.local });
