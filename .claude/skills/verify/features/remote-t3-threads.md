@@ -9,7 +9,7 @@ RoomBai polls T3 Code servers on other machines. Each top-level remote thread be
 - `t3-status` copies T3's own `projectThreadAwarenessV2` rules into a roomba status.
 - `t3-outage` removes a server's roombas after 30 s without a good poll. Ack and hide survive the outage.
 - `t3-problems` lists each bad config entry as a disabled tray line. Invalid JSON keeps the previous servers polling.
-- `t3-discover` finds T3 servers on the user's own online Tailscale peers at startup, every 5 minutes, and on Paste or Connect. Each compatible one not in the config gets a `Connect <label>...` tray line. A discovery problem shows as `Finding T3 servers: <reason>`.
+- `t3-discover` finds T3 servers on the user's own online Tailscale peers and the tagged peers of their tailnet. It runs at startup, every 5 minutes, after Connect opens the page, and before a Paste of a bare code or a localhost link. Each compatible one not in the config gets a `Connect <label>...` tray line. A discovery problem shows as `Finding T3 servers: <reason>`, except `Tailscale not found` while no server is configured.
 - `t3-pair` turns a pasted pairing link into an `orchestration:read` entry with `tokenEnc` and `expiresAt`.
 - `t3-expiry` adds `(key expires in N d)` to the status line, and a `Reconnect <label>...` line from 3 days before expiry or on a 401.
 
