@@ -192,3 +192,27 @@ test('a silent compaction run keeps the ack, the hide, the finish time and the t
   await remote.refresh();
   assert.deepEqual(room().map((a) => a.slice(0, 3)), [['seen', 'working', 2]], 'a real run clears the ack and counts');
 });
+
+for (const outage of ['returns 500', 'closes']) {
+  test(`a server that ${outage} for 30 seconds loses its roombas, and never shows stuck`, async (t) => {
+    let clock = Date.now();
+    const server = await t3Server(t, { shell: () => ({ projects: fixture().projects, threads: [thread('run', { status: 'running' })] }) });
+    const { watcher, remote, statuses } = connect(t, server, { now: () => clock });
+    const seen = new Set();
+    watcher.on('agents', (list) => { for (const a of list) seen.add(a.status); });
+    await remote.refresh();
+    assert.deepEqual(statuses(), [['run', 'working']]);
+
+    if (outage === 'closes') await server.close(); else server.shellStatus = 500;
+    clock += 25e3;
+    await remote.refresh();
+    assert.equal(remote.status()[0].state, 'unreachable');
+    assert.deepEqual(statuses(), [['run', 'working']], 'a short outage keeps the last good poll');
+
+    clock += 6e3;
+    await remote.refresh();
+    assert.deepEqual(statuses(), [], 'roombas leave once the server is stale');
+    assert.equal(remote.status()[0].state, 'unreachable', 'the tray still says why');
+    assert.deepEqual([...seen], ['working']);
+  });
+}

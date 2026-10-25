@@ -5,6 +5,8 @@ const { newAgent, firstLine, RECENT_FILE_MS } = require('./watcher');
 const POLL_MS = 10e3;
 const TIMEOUT_MS = 8e3;
 const PROTOCOL = 2;
+// A server with no good poll for this long loses its roombas. An outage is not an agent status.
+const STALE_MS = 3 * POLL_MS;
 
 // Run status -> room status, after pending requests. idle, queued, interrupted, cancelled and
 // rolled_back have no awareness phase in T3, so they fall through to idle.
@@ -83,11 +85,14 @@ class HttpError extends Error {
   constructor(status) { super(`HTTP ${status}`); this.status = status; }
 }
 
+class IncompatibleError extends Error {}
+
 // servers: [{ url, token }]. onAgents(url, agents) after each good poll; onStatus() when a status changes.
 function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now, onAgents = () => {},
   onStatus = () => {}, prev = new Map() } = {}) {
   const entries = servers.map((s) => ({
     url: String(s.url).replace(/\/+$/, ''), token: s.token || '', env: null, timer: null, busy: null,
+    lastOkAt: now(), cleared: false,
     status: { url: String(s.url).replace(/\/+$/, ''), label: hostOf(s.url), state: 'connecting', error: '' },
   }));
   let stopped = false;
@@ -106,28 +111,36 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
     return res.json();
   }
 
+  async function fetchAgents(e) {
+    if (!e.env) {
+      const env = await getJson(e, '/.well-known/t3/environment');
+      if (env?.orchestrationProtocolVersion !== PROTOCOL || !env.environmentId) {
+        throw new IncompatibleError(`server speaks protocol ${env?.orchestrationProtocolVersion ?? 'unknown'}, Roombai needs ${PROTOCOL}`);
+      }
+      e.env = { environmentId: env.environmentId, label: env.label || hostOf(e.url) };
+      e.status = { ...e.status, label: e.env.label };
+    }
+    const shell = await getJson(e, '/api/orchestration/shell', {
+      Authorization: `Bearer ${e.token}`, 'x-t3-orchestration-protocol': String(PROTOCOL), 'Accept-Encoding': 'gzip',
+    });
+    return agentsFromShell(shell, e.env, now(), prev);
+  }
+
   async function poll(e) {
     try {
-      if (!e.env) {
-        const env = await getJson(e, '/.well-known/t3/environment');
-        if (stopped) return;
-        if (env?.orchestrationProtocolVersion !== PROTOCOL || !env.environmentId) {
-          return setStatus(e, 'incompatible', `server speaks protocol ${env?.orchestrationProtocolVersion ?? 'unknown'}, Roombai needs ${PROTOCOL}`);
-        }
-        e.env = { environmentId: env.environmentId, label: env.label || hostOf(e.url) };
-        e.status = { ...e.status, label: e.env.label };
-      }
-      const shell = await getJson(e, '/api/orchestration/shell', {
-        Authorization: `Bearer ${e.token}`, 'x-t3-orchestration-protocol': String(PROTOCOL), 'Accept-Encoding': 'gzip',
-      });
+      const agents = await fetchAgents(e);
       if (stopped) return;
-      onAgents(e.url, agentsFromShell(shell, e.env, now(), prev));
+      e.lastOkAt = now();
+      e.cleared = false;
+      onAgents(e.url, agents);
       setStatus(e, 'ok');
     } catch (err) {
       if (stopped) return;
-      if (err.status === 401 || err.status === 403) setStatus(e, 'unauthorized', 'token rejected; issue a new one');
+      if (err instanceof IncompatibleError) setStatus(e, 'incompatible', err.message);
+      else if (err.status === 401 || err.status === 403) setStatus(e, 'unauthorized', 'token rejected; issue a new one');
       else if (err.status === 426) { e.env = null; setStatus(e, 'incompatible', 'server wants a different protocol'); }
       else setStatus(e, 'unreachable', err.cause?.message || err.message);
+      if (!e.cleared && now() - e.lastOkAt > STALE_MS) { e.cleared = true; onAgents(e.url, []); }
     }
   }
 
