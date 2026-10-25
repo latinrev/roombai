@@ -42,6 +42,7 @@ function newAgent(id, provider) {
     acked: false,
     hidden: false,
     manualStatus: null,
+    remoteStatus: null,
     lastAssistantTextAt: 0,
   };
 }
@@ -55,6 +56,7 @@ class Watcher extends EventEmitter {
   constructor({ demo = false } = {}) {
     super();
     this.agents = new Map();
+    this.departed = new Map();
     this.files = new Map(); // path -> { offset, rest, agentId, kind }
     this.demo = demo;
     this.lastSnapshot = '';
@@ -247,6 +249,8 @@ class Watcher extends EventEmitter {
 
   // ---------- status ----------
   statusOf(a, now) {
+    if (a.remoteStatus === 'done') return !a.acked && now - a.completedAt < DONE_FRESH_MS ? 'done' : 'idle';
+    if (a.remoteStatus) return a.remoteStatus;
     if (a.manualStatus) return a.manualStatus;
     // Claude: an assistant text reply followed by silence means the turn ended.
     if (a.provider === 'claude' && a.turnOpen && a.lastAssistantTextAt && a.pending.size === 0 &&
@@ -288,6 +292,7 @@ class Watcher extends EventEmitter {
         turns: a.turns,
         toolCalls: a.toolCalls,
         detail: status === 'stuck' && a.error ? a.error : a.lastMessage || a.lastPrompt,
+        ...(a.machine ? { machine: a.machine } : {}),
       });
     }
     list.sort((x, y) => x.id.localeCompare(y.id));
@@ -314,6 +319,22 @@ class Watcher extends EventEmitter {
   hide(id) {
     const a = this.agents.get(id);
     if (a) { a.hidden = true; this.publish(); }
+  }
+
+  setRemoteAgents(source, list, now = Date.now()) {
+    const ids = new Set(list.map((a) => a.id));
+    for (const [id, a] of this.agents) {
+      if (a.remote === source && !ids.has(id)) { this.agents.delete(id); this.departed.set(id, Object.assign(a, { departedAt: now })); }
+    }
+    for (const [id, a] of this.departed) if (ids.has(id) || now - a.departedAt > RECENT_FILE_MS) this.departed.delete(id);
+    for (const a of list) this.agents.set(a.id, Object.assign(a, { remote: source }));
+    this.publish();
+  }
+
+  recall(id, now = Date.now()) {
+    const gone = this.departed.get(id);
+    if (gone && now - gone.departedAt > RECENT_FILE_MS) this.departed.delete(id);
+    return this.agents.get(id) || this.departed.get(id);
   }
 
   // ---------- HTTP: generic events + Claude Code hooks ----------
@@ -434,4 +455,4 @@ function listRecent(dir, now) {
   return out;
 }
 
-module.exports = { Watcher, PORT };
+module.exports = { Watcher, PORT, newAgent, firstLine, RECENT_FILE_MS };

@@ -25,6 +25,7 @@ It's a watcher, not a control center. It reads the session logs your agents alre
 ## Capabilities (confirmed, shipped)
 
 - Zero-setup watching of Codex (CLI, Codex app, t3code) and Claude Code sessions
+- Read-only watching of T3 Code threads on other machines, with a token per server
 - Statuses: working, needs you, stuck, done, napping; notifications and chiptune alerts
 - Activity makes mess (deliveries per message, scraps per tool call), and idle roombas clean
 - Furniture gets dirty and then wrecked; roombas scrub pieces they're placed on

@@ -1,8 +1,11 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, dialog, nativeImage, shell, clipboard, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
 const github = require('./github');
+const { createT3Servers, describeServer } = require('./t3remote');
+const { discoverT3 } = require('./t3discover');
+const { guessCandidates, pairT3, unconnected } = require('./t3pair');
 
 const SCALE_DEFAULT = 3;
 const ROOM_W = 360; // internal pixel-art resolution
@@ -14,6 +17,13 @@ let watcher;
 let updates;
 let community;
 let usage;
+let t3servers;
+let discovery = { servers: [], reason: '' };
+let discovering = null;
+let pairing = false;
+let pairMessage = '';
+let pairMessageTimer;
+const DISCOVER_MS = 5 * 60e3;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
@@ -154,6 +164,9 @@ function trayMenu() {
     { label: 'Mute alerts', type: 'checkbox', checked: settings.muted, click: (i) => setOption('muted', i.checked) },
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
     { type: 'separator' },
+    { label: 'Remote T3 servers…', enabled: Boolean(t3File()), click: openT3Servers },
+    ...t3Lines(),
+    { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 }
@@ -163,6 +176,91 @@ function buildTray() {
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setContextMenu(trayMenu());
   tray.on('click', () => setOption('hidden', win.isVisible()));
+}
+
+function t3Lines() {
+  if (!t3servers) return [];
+  const statuses = t3servers.status();
+  const lines = [];
+  for (const s of statuses) {
+    const { text, reconnect } = describeServer(s);
+    lines.push({ label: text, enabled: false });
+    if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url, s.label) });
+  }
+  for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
+  if (discovery.reason && (!discovery.missing || statuses.length || t3servers.problems().length)) {
+    lines.push({ label: `Finding T3 servers: ${discovery.reason}`, enabled: false });
+  }
+  for (const d of unconnected(discovery.servers, statuses)) {
+    lines.push(d.compatible ? { label: `Connect ${d.label}…`, click: () => connectServer(d) }
+      : { label: `${d.label}: runs a T3 version Roombai cannot read`, enabled: false });
+  }
+  lines.push({ label: 'Paste T3 pairing link', click: pastePairingLink });
+  if (pairMessage) lines.push({ label: pairMessage, enabled: false });
+  return lines;
+}
+
+function openPairPage(url, label) {
+  shell.openExternal(new URL('/settings/connections', url + '/').href);
+  const body = `In T3 (the app where ${label} is connected), open Settings, Connections, Create pairing link, copy it, then choose Paste T3 pairing link in Roombai.`;
+  if (Notification.isSupported()) new Notification({ title: `Connect ${label}`, body, silent: true }).show();
+  else void dialog.showMessageBox({ type: 'info', title: `Connect ${label}`, message: body });
+}
+
+function connectServer(d) {
+  openPairPage(d.url, d.label);
+  void discover();
+}
+
+function showPairMessage(text) {
+  pairMessage = text;
+  clearTimeout(pairMessageTimer);
+  pairMessageTimer = setTimeout(() => { pairMessage = ''; if (tray) tray.setContextMenu(trayMenu()); }, 60e3);
+  if (tray) tray.setContextMenu(trayMenu());
+}
+
+async function pastePairingLink() {
+  if (pairing) return;
+  pairing = true;
+  try {
+    const text = clipboard.readText();
+    showPairMessage('Pairing…');
+    const findCandidates = async () => {
+      await discover();
+      return guessCandidates(discovery, t3servers.status());
+    };
+    const result = await pairT3({ text, file: t3File(), fs, safeStorage, findCandidates, statuses: t3servers.status() });
+    let message = result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`;
+    if (!result.problem) {
+      try { t3servers.reload(); } catch { message = `Saved ${result.label}, but it could not be loaded; restart Roombai`; }
+    }
+    showPairMessage(message);
+  } finally {
+    pairing = false;
+  }
+}
+
+function discover() {
+  discovering ||= discoverT3().then((found) => { discovery = found; }).finally(() => {
+    discovering = null;
+    if (tray) tray.setContextMenu(trayMenu());
+  });
+  return discovering;
+}
+
+function t3File() {
+  if (process.env.ROOMBAI_T3_SERVERS) return process.env.ROOMBAI_T3_SERVERS;
+  if (process.env.ROOM_SHOT || process.argv.includes('--demo')) return null;
+  return path.join(app.getPath('userData'), 't3-servers.json');
+}
+
+function openT3Servers() {
+  const file = t3File();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    fs.writeFileSync(file, JSON.stringify([{ url: 'https://your-host.your-tailnet.ts.net', token: '' }], null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+  } catch {}
+  shell.openPath(file);
 }
 
 // every setting goes through here, from the in-game menu and the tray alike
@@ -234,6 +332,16 @@ app.whenReady().then(() => {
     getCount: () => new Set(watcher.snapshot().map(agent => agent.id)).size,
   });
   community.start();
+  if (t3File()) {
+    t3servers = createT3Servers({ file: t3File(), fs, safeStorage, watcher,
+      onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); } });
+    t3servers.reload();
+    fs.watchFile(t3File(), { interval: 2000 }, (curr, prev) => {
+      if (curr.mtimeMs !== prev.mtimeMs && curr.mtimeMs !== t3servers.ownWrite()) t3servers.reload();
+    });
+    void discover();
+    setInterval(discover, DISCOVER_MS).unref();
+  }
   sendConfig();
 
   ipcMain.on('set-ignore', (_e, ignore) => win.setIgnoreMouseEvents(ignore, { forward: true }));
@@ -313,4 +421,4 @@ function jumpTo(a) {
 }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (watcher) watcher.stop(); });
+app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (t3servers) t3servers.stop(); if (watcher) watcher.stop(); });
