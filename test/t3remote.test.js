@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { test } = require('node:test');
-const { createT3Remote, loadT3Servers } = require('../src/t3remote');
+const { createT3Remote, createT3Servers, loadT3Servers } = require('../src/t3remote');
 const { Watcher } = require('../src/watcher');
 
 const TOKEN = 'secret-token-abc123';
@@ -331,10 +331,10 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
   assert.equal(again.mtimeMs, undefined, 'an already encrypted file is not rewritten');
 });
 
-test('t3-servers.json: a missing file is empty, broken JSON or a non-list is one problem', (t) => {
+test('t3-servers.json: a missing file is empty, broken JSON is unreadable, a non-list is one problem', (t) => {
   assert.deepEqual(loadT3Servers({ file: configFile(t), fs, safeStorage }), { servers: [], problems: [] });
   assert.deepEqual(loadT3Servers({ file: configFile(t, '[{ "url": '), fs, safeStorage }),
-    { servers: [], problems: [{ label: 't3-servers.json', reason: 'invalid JSON' }] });
+    { servers: null, problems: [{ label: 't3-servers.json', reason: 'invalid JSON' }] });
   assert.deepEqual(loadT3Servers({ file: configFile(t, { url: 'https://a.ts.net' }), fs, safeStorage }),
     { servers: [], problems: [{ label: 't3-servers.json', reason: 'expected a list of servers' }] });
 });
@@ -352,4 +352,27 @@ test('t3-servers.json: without secure storage, plaintext tokens work and stored 
     mtimeMs: undefined,
   });
   assert.equal(fs.readFileSync(file, 'utf8'), before);
+});
+
+test('t3-servers.json: a reload with broken JSON keeps the running servers and shows the problem', async (t) => {
+  const server = await t3Server(t);
+  const file = configFile(t, [{ url: server.url, token: TOKEN }]);
+  const watcher = new Watcher();
+  const servers = createT3Servers({ file, fs, safeStorage, watcher });
+  t.after(() => servers.stop());
+  const room = () => watcher.snapshot().map((a) => a.id.replace('t3:env-1:', ''));
+  servers.reload();
+  await servers.refresh();
+  assert.deepEqual(room(), ['ask', 'done', 'fail', 'run']);
+
+  fs.writeFileSync(file, '[{ "url": ');
+  servers.reload();
+  assert.deepEqual(servers.problems(), [{ label: 't3-servers.json', reason: 'invalid JSON' }]);
+  await servers.refresh();
+  assert.deepEqual(room(), ['ask', 'done', 'fail', 'run'], 'a half-saved file keeps the roombas');
+  assert.deepEqual(servers.status().map((s) => s.state), ['ok']);
+
+  fs.writeFileSync(file, '[]');
+  servers.reload();
+  assert.deepEqual([servers.status(), servers.problems(), room()], [[], [], []], 'an empty list removes the server');
 });

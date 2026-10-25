@@ -103,13 +103,15 @@ class HttpError extends Error {
 
 class IncompatibleError extends Error {}
 
+const trimUrl = (url) => String(url).replace(/\/+$/, '');
+
 // servers: [{ url, token }]. onAgents(url, agents) after each good poll; onStatus() when a status changes.
 function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now, onAgents = () => {},
   onStatus = () => {}, recall } = {}) {
   const entries = servers.map((s) => ({
-    url: String(s.url).replace(/\/+$/, ''), token: s.token || '', env: null, timer: null, busy: null,
+    url: trimUrl(s.url), token: s.token || '', env: null, timer: null, busy: null,
     lastOkAt: now(), cleared: false,
-    status: { url: String(s.url).replace(/\/+$/, ''), label: hostOf(s.url), state: 'connecting', error: '' },
+    status: { url: trimUrl(s.url), label: hostOf(s.url), state: 'connecting', error: '' },
   }));
   let stopped = false;
 
@@ -190,13 +192,14 @@ function urlProblem(raw) {
 }
 
 // t3-servers.json: [{ "url": "https://host.tailnet.ts.net", "token": "..." }]. Plaintext tokens are swapped
-// for safeStorage ciphertext as they are read. mtimeMs is set when this call rewrote the file.
+// for safeStorage ciphertext as they are read. mtimeMs is set when this call rewrote the file. servers is
+// null when the file can't be read or parsed, which may be a half-saved edit.
 function loadT3Servers({ file, fs, safeStorage }) {
   const name = path.basename(file);
   let list;
   try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) {
     if (err.code === 'ENOENT') return { servers: [], problems: [] };
-    return { servers: [], problems: [{ label: name, reason: err instanceof SyntaxError ? 'invalid JSON' : 'unreadable' }] };
+    return { servers: null, problems: [{ label: name, reason: err instanceof SyntaxError ? 'invalid JSON' : 'unreadable' }] };
   }
   if (!Array.isArray(list)) return { servers: [], problems: [{ label: name, reason: 'expected a list of servers' }] };
   let canEncrypt = false;
@@ -233,6 +236,43 @@ function loadT3Servers({ file, fs, safeStorage }) {
   return { servers, problems, mtimeMs };
 }
 
+// Owns the pollers for one t3-servers.json. reload() rereads it: an unchanged list keeps its pollers,
+// and a file that can't be read keeps the last good list.
+function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, fetch, now }) {
+  let remote = null;
+  let key = null;
+  let problems = [];
+  let ownWrite = 0;
+
+  function reload() {
+    const loaded = loadT3Servers({ file, fs, safeStorage });
+    if (loaded.mtimeMs) ownWrite = loaded.mtimeMs;
+    problems = loaded.problems;
+    const servers = loaded.servers ?? (remote ? null : []);
+    if (servers && JSON.stringify(servers) !== key) {
+      const old = remote;
+      old?.stop();
+      const urls = new Set(servers.map((s) => trimUrl(s.url)));
+      for (const s of old?.status() || []) if (!urls.has(s.url)) watcher.setRemoteAgents(s.url, []);
+      key = JSON.stringify(servers);
+      remote = createT3Remote({ servers, fetch, now, recall: (id) => watcher.recall(id),
+        onAgents: (source, list) => watcher.setRemoteAgents(source, list), onStatus });
+      remote.start();
+    }
+    onStatus();
+  }
+
+  return {
+    reload,
+    // mtime of the app's own rewrite of the file, which must not trigger a reload
+    ownWrite: () => ownWrite,
+    status: () => remote?.status() || [],
+    problems: () => problems,
+    refresh: () => remote?.refresh(),
+    stop: () => remote?.stop(),
+  };
+}
+
 function writeAtomic(fs, file, text) {
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomBytes(6).toString('hex')}.tmp`);
   try {
@@ -253,4 +293,4 @@ function hostOf(url) {
   return /^[\d.]+$|^\[/.test(host) ? host : host.split('.')[0];
 }
 
-module.exports = { agentsFromShell, createT3Remote, loadT3Servers, redact };
+module.exports = { agentsFromShell, createT3Remote, createT3Servers, loadT3Servers, redact };

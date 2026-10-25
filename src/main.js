@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
 const github = require('./github');
-const { createT3Remote, loadT3Servers } = require('./t3remote');
+const { createT3Servers } = require('./t3remote');
 
 const SCALE_DEFAULT = 3;
 const ROOM_W = 360; // internal pixel-art resolution
@@ -15,9 +15,7 @@ let watcher;
 let updates;
 let community;
 let usage;
-let t3remote;
-let t3problems = [];
-let t3OwnWrite = 0; // mtime of the app's own rewrite of t3-servers.json, which must not trigger a reload
+let t3servers;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
@@ -159,8 +157,8 @@ function trayMenu() {
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
     { type: 'separator' },
     { label: 'Remote T3 servers…', enabled: Boolean(t3File()), click: openT3Servers },
-    ...(t3remote?.status() || []).map((s) => ({ label: `${s.label}: ${s.state}${s.error ? ' (' + s.error + ')' : ''}`, enabled: false })),
-    ...t3problems.map((p) => ({ label: `${p.label}: ${p.reason}`, enabled: false })),
+    ...(t3servers?.status() || []).map((s) => ({ label: `${s.label}: ${s.state}${s.error ? ' (' + s.error + ')' : ''}`, enabled: false })),
+    ...(t3servers?.problems() || []).map((p) => ({ label: `${p.label}: ${p.reason}`, enabled: false })),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -179,23 +177,6 @@ function t3File() {
   if (process.env.ROOMBAI_T3_SERVERS) return process.env.ROOMBAI_T3_SERVERS;
   if (process.env.ROOM_SHOT || process.argv.includes('--demo')) return null;
   return path.join(app.getPath('userData'), 't3-servers.json');
-}
-
-function startT3Remote() {
-  const { servers, problems, mtimeMs } = loadT3Servers({ file: t3File(), fs, safeStorage });
-  if (mtimeMs) t3OwnWrite = mtimeMs;
-  t3problems = problems;
-  const old = t3remote;
-  if (old) old.stop();
-  const urls = new Set(servers.map((s) => s.url.replace(/\/+$/, '')));
-  for (const s of old?.status() || []) if (!urls.has(s.url)) watcher.setRemoteAgents(s.url, []);
-  t3remote = createT3Remote({
-    servers, recall: (id) => watcher.recall(id),
-    onAgents: (source, list) => watcher.setRemoteAgents(source, list),
-    onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); },
-  });
-  t3remote.start();
-  if (tray) tray.setContextMenu(trayMenu());
 }
 
 function openT3Servers() {
@@ -277,9 +258,11 @@ app.whenReady().then(() => {
   });
   community.start();
   if (t3File()) {
-    startT3Remote();
+    t3servers = createT3Servers({ file: t3File(), fs, safeStorage, watcher,
+      onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); } });
+    t3servers.reload();
     fs.watchFile(t3File(), { interval: 2000 }, (curr, prev) => {
-      if (curr.mtimeMs !== prev.mtimeMs && curr.mtimeMs !== t3OwnWrite) startT3Remote();
+      if (curr.mtimeMs !== prev.mtimeMs && curr.mtimeMs !== t3servers.ownWrite()) t3servers.reload();
     });
   }
   sendConfig();
@@ -361,4 +344,4 @@ function jumpTo(a) {
 }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (t3remote) t3remote.stop(); if (watcher) watcher.stop(); });
+app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (t3servers) t3servers.stop(); if (watcher) watcher.stop(); });
