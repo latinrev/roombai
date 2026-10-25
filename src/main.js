@@ -3,7 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
 const github = require('./github');
-const { createT3Servers } = require('./t3remote');
+const { createT3Servers, describeServer } = require('./t3remote');
+const { discoverT3 } = require('./t3discover');
+const { pairT3, unconnected } = require('./t3pair');
 
 const SCALE_DEFAULT = 3;
 const ROOM_W = 360; // internal pixel-art resolution
@@ -16,6 +18,10 @@ let updates;
 let community;
 let usage;
 let t3servers;
+let discovered = [];
+let pairMessage = '';
+let pairMessageTimer;
+const DISCOVER_MS = 5 * 60e3;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
@@ -157,8 +163,7 @@ function trayMenu() {
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
     { type: 'separator' },
     { label: 'Remote T3 servers…', enabled: Boolean(t3File()), click: openT3Servers },
-    ...(t3servers?.status() || []).map((s) => ({ label: `${s.label}: ${s.state}${s.error ? ' (' + s.error + ')' : ''}`, enabled: false })),
-    ...(t3servers?.problems() || []).map((p) => ({ label: `${p.label}: ${p.reason}`, enabled: false })),
+    ...t3Lines(),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -169,6 +174,48 @@ function buildTray() {
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setContextMenu(trayMenu());
   tray.on('click', () => setOption('hidden', win.isVisible()));
+}
+
+function t3Lines() {
+  if (!t3servers) return [];
+  const statuses = t3servers.status();
+  const lines = [];
+  for (const s of statuses) {
+    const { text, reconnect } = describeServer(s);
+    lines.push({ label: text, enabled: false });
+    if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url) });
+  }
+  for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
+  for (const d of unconnected(discovered, statuses)) lines.push({ label: `Connect ${d.label}…`, click: () => openPairPage(d.url) });
+  lines.push({ label: 'Paste T3 pairing link', click: pastePairingLink });
+  if (pairMessage) lines.push({ label: pairMessage, enabled: false });
+  return lines;
+}
+
+// Settings > Connections is where T3 makes a pairing link.
+function openPairPage(url) { shell.openExternal(new URL('/settings/connections', url + '/').href); }
+
+function showPairMessage(text) {
+  pairMessage = text;
+  clearTimeout(pairMessageTimer);
+  pairMessageTimer = setTimeout(() => { pairMessage = ''; if (tray) tray.setContextMenu(trayMenu()); }, 60e3);
+  if (tray) tray.setContextMenu(trayMenu());
+}
+
+async function pastePairingLink() {
+  const statuses = t3servers.status();
+  const candidates = [...unconnected(discovered, statuses).map((d) => d.url),
+    ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
+  showPairMessage('Pairing…');
+  const result = await pairT3({ text: clipboard.readText(), file: t3File(), fs, candidates, statuses });
+  if (!result.problem) t3servers.reload();
+  showPairMessage(result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`);
+}
+
+// Rebuilding the tray on each pass also keeps the key expiry lines current.
+async function discover() {
+  discovered = (await discoverT3()).servers;
+  if (tray) tray.setContextMenu(trayMenu());
 }
 
 function t3File() {
@@ -262,6 +309,8 @@ app.whenReady().then(() => {
     fs.watchFile(t3File(), { interval: 2000 }, (curr, prev) => {
       if (curr.mtimeMs !== prev.mtimeMs && curr.mtimeMs !== t3servers.ownWrite()) t3servers.reload();
     });
+    void discover();
+    setInterval(discover, DISCOVER_MS).unref();
   }
   sendConfig();
 
