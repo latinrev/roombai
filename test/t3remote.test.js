@@ -307,6 +307,7 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
     { url: 'http://localhost:3773', token: 'boom' },
   ]);
   assert.deepEqual(loaded.problems, [
+    { label: 'localhost', reason: 'could not encrypt the token; it stays in plain text for now' },
     { label: 'entry 5', reason: 'bad URL' },
     { label: 'entry 6', reason: 'url must be a string' },
     { label: 'entry 7', reason: 'bad URL' },
@@ -317,6 +318,7 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
     { label: 'garbled', reason: 'token unreadable; paste it again' },
     { label: 'entry 13', reason: 'expected an object with url and token' },
   ]);
+  assert.equal(loaded.retry, true, 'the plain text token is retried later');
 
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   assert.deepEqual(saved.slice(0, 4), [
@@ -333,6 +335,7 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
   const again = loadT3Servers({ file, fs, safeStorage });
   assert.deepEqual(again.servers, loaded.servers);
   assert.equal(again.mtimeMs, undefined, 'an already encrypted file is not rewritten');
+  assert.equal(again.retry, true, 'until the last token encrypts');
 });
 
 test('t3-servers.json: a missing file is empty, broken JSON is unreadable, a non-list is one problem', (t) => {
@@ -343,19 +346,25 @@ test('t3-servers.json: a missing file is empty, broken JSON is unreadable, a non
     { servers: [], problems: [{ label: 't3-servers.json', reason: 'expected a list of servers' }] });
 });
 
-test('t3-servers.json: without secure storage, plaintext tokens work and stored ones ask for a new paste', (t) => {
+test('t3-servers.json: without secure storage, plaintext tokens work and stored ones wait for it', (t) => {
   const file = configFile(t, [
     { url: 'https://plain.ts.net', token: 'plain-token' },
     { url: 'https://stored.ts.net', tokenEnc: Buffer.from('enc:stored-token').toString('base64') },
   ]);
   const before = fs.readFileSync(file, 'utf8');
-  const noStorage = { isEncryptionAvailable: () => false };
-  assert.deepEqual(loadT3Servers({ file, fs, safeStorage: noStorage }), {
+  const expected = {
     servers: [{ url: 'https://plain.ts.net', token: 'plain-token' }],
-    problems: [{ label: 'stored', reason: 'token unreadable; paste it again' }],
+    problems: [{ label: 'stored', reason: 'secure storage unavailable; restart once unlocked' }],
     mtimeMs: undefined,
-  });
+    retry: false,
+  };
+  assert.deepEqual(loadT3Servers({ file, fs, safeStorage: { isEncryptionAvailable: () => false } }), expected);
   assert.equal(fs.readFileSync(file, 'utf8'), before);
+
+  // Linux with no keyring: encryption "works" with a fixed key, and keyring ciphertext can't be read.
+  const basicText = { ...safeStorage, getSelectedStorageBackend: () => 'basic_text', decryptString: () => { throw new Error('no keyring'); } };
+  const loaded = loadT3Servers({ file, fs, safeStorage: basicText });
+  assert.deepEqual(loaded.problems, expected.problems);
 });
 
 test('t3-servers.json: a reload with broken JSON keeps the running servers and shows the problem', async (t) => {
@@ -379,4 +388,35 @@ test('t3-servers.json: a reload with broken JSON keeps the running servers and s
   fs.writeFileSync(file, '[]');
   servers.reload();
   assert.deepEqual([servers.status(), servers.problems(), room()], [[], [], []], 'an empty list removes the server');
+});
+
+test('t3-servers.json: each failed save step names its own problem, and a failed rewrite is retried', async (t) => {
+  const failing = (step) => ({ ...fs, [step]: () => { throw new Error(`${step} failed`); } });
+  const plain = [{ url: 'https://box.ts.net', token: 'plain-token' }];
+  const encrypted = [{ url: 'https://box.ts.net', tokenEnc: Buffer.from('enc:plain-token').toString('base64') }];
+  const load = (file, step) => {
+    const { problems, retry } = loadT3Servers({ file, fs: failing(step), safeStorage });
+    return { problems, retry, saved: JSON.parse(fs.readFileSync(file, 'utf8')) };
+  };
+
+  assert.deepEqual(load(configFile(t, plain), 'renameSync'), {
+    problems: [{ label: 't3-servers.json', reason: 'could not save encrypted tokens; the file still holds them in plain text' }],
+    retry: true, saved: plain,
+  });
+  assert.deepEqual(load(configFile(t, plain), 'chmodSync'), {
+    problems: [{ label: 't3-servers.json', reason: 'tokens saved encrypted, but the file could not be made owner-only' }],
+    retry: false, saved: encrypted,
+  });
+  assert.deepEqual(load(configFile(t, plain), 'statSync'), { problems: [], retry: false, saved: encrypted });
+
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const file = configFile(t, plain);
+  let renames = 0;
+  const flaky = { ...fs, renameSync: (...args) => { if (renames++ === 0) throw new Error('busy'); return fs.renameSync(...args); } };
+  const servers = createT3Servers({ file, fs: flaky, safeStorage, watcher: new Watcher(), fetch: () => new Promise(() => {}) });
+  t.after(() => servers.stop());
+  servers.reload();
+  assert.equal(servers.problems().length, 1);
+  t.mock.timers.tick(10e3);
+  assert.deepEqual([servers.problems(), JSON.parse(fs.readFileSync(file, 'utf8'))], [[], encrypted], 'the next tick saves it');
 });

@@ -192,8 +192,9 @@ function urlProblem(raw) {
 }
 
 // t3-servers.json: [{ "url": "https://host.tailnet.ts.net", "token": "..." }]. Plaintext tokens are swapped
-// for safeStorage ciphertext as they are read. mtimeMs is set when this call rewrote the file. servers is
-// null when the file can't be read or parsed, which may be a half-saved edit.
+// for safeStorage ciphertext as they are read. mtimeMs is set when this call rewrote the file, and retry
+// when a token is still plain text and a later load should try again. servers is null when the file
+// can't be read or parsed, which may be a half-saved edit.
 function loadT3Servers({ file, fs, safeStorage }) {
   const name = path.basename(file);
   let list;
@@ -204,9 +205,14 @@ function loadT3Servers({ file, fs, safeStorage }) {
   if (!Array.isArray(list)) return { servers: [], problems: [{ label: name, reason: 'expected a list of servers' }] };
   let canEncrypt = false;
   try { canEncrypt = safeStorage.isEncryptionAvailable(); } catch {}
+  let backend;
+  try { backend = safeStorage.getSelectedStorageBackend?.(); } catch {}
+  // On Linux, basic_text means no keyring answered, so a token sealed by the keyring can't be read yet.
+  const keyring = canEncrypt && backend !== 'basic_text';
   const servers = [];
   const problems = [];
   let changed = false;
+  let retry = false;
   for (const [i, entry] of list.entries()) {
     // A bad URL may be a pasted token, so it is never shown.
     let label = `entry ${i + 1}`;
@@ -224,21 +230,25 @@ function loadT3Servers({ file, fs, safeStorage }) {
         entry.tokenEnc = safeStorage.encryptString(token).toString('base64');
         delete entry.token;
         changed = true;
-      } catch {}
+      } catch {
+        retry = true;
+        problems.push({ label, reason: 'could not encrypt the token; it stays in plain text for now' });
+      }
     } else if (!token && entry.tokenEnc) {
       try { if (canEncrypt) token = safeStorage.decryptString(Buffer.from(String(entry.tokenEnc), 'base64')); } catch {}
-      if (!token) { reject('token unreadable; paste it again'); continue; }
+      if (!token) { reject(keyring ? 'token unreadable; paste it again' : 'secure storage unavailable; restart once unlocked'); continue; }
     }
     if (!token) { reject('token is empty'); continue; }
     servers.push({ url: entry.url, token });
   }
   let mtimeMs;
   if (changed) {
-    try { mtimeMs = writeAtomic(fs, file, JSON.stringify(list, null, 2) + '\n'); } catch {
-      problems.push({ label: name, reason: 'could not save encrypted tokens; the file still holds them in plain text' });
-    }
+    const saved = writeAtomic(fs, file, JSON.stringify(list, null, 2) + '\n');
+    mtimeMs = saved.mtimeMs;
+    if (saved.problem) problems.push({ label: name, reason: saved.problem });
+    retry ||= Boolean(saved.retry);
   }
-  return { servers, problems, mtimeMs };
+  return { servers, problems, mtimeMs, retry };
 }
 
 // Owns the pollers for one t3-servers.json. reload() rereads it: an unchanged list keeps its pollers,
@@ -248,9 +258,12 @@ function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, 
   let key = null;
   let problems = [];
   let ownWrite = 0;
+  let retryTimer = null;
 
   function reload() {
+    clearTimeout(retryTimer);
     const loaded = loadT3Servers({ file, fs, safeStorage });
+    if (loaded.retry) { retryTimer = setTimeout(reload, POLL_MS); retryTimer.unref?.(); }
     if (loaded.mtimeMs) ownWrite = loaded.mtimeMs;
     problems = loaded.problems;
     const servers = loaded.servers ?? (remote ? null : []);
@@ -274,21 +287,23 @@ function createT3Servers({ file, fs, safeStorage, watcher, onStatus = () => {}, 
     status: () => remote?.status() || [],
     problems: () => problems,
     refresh: () => remote?.refresh(),
-    stop: () => remote?.stop(),
+    stop: () => { clearTimeout(retryTimer); remote?.stop(); },
   };
 }
 
+// Each step that can fail names its own problem. Without an mtime the file watcher sees this write as an
+// edit, and the reload finds nothing changed.
 function writeAtomic(fs, file, text) {
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomBytes(6).toString('hex')}.tmp`);
   try {
     fs.writeFileSync(tmp, text, { mode: 0o600, flag: 'wx' });
     fs.renameSync(tmp, file);
-  } catch (err) {
+  } catch {
     try { fs.unlinkSync(tmp); } catch {}
-    throw err;
+    return { problem: 'could not save encrypted tokens; the file still holds them in plain text', retry: true };
   }
-  fs.chmodSync(file, 0o600);
-  return fs.statSync(file).mtimeMs;
+  try { fs.chmodSync(file, 0o600); } catch { return { problem: 'tokens saved encrypted, but the file could not be made owner-only' }; }
+  try { return { mtimeMs: fs.statSync(file).mtimeMs }; } catch { return {}; }
 }
 
 // The machine name from a URL: the first label of a host name, or a whole IP address.
