@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, dialog, nativeImage, shell, clipboard, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
@@ -18,7 +18,9 @@ let updates;
 let community;
 let usage;
 let t3servers;
-let discovered = [];
+let discovery = { servers: [], reason: '' };
+let discovering = null;
+let pairing = false;
 let pairMessage = '';
 let pairMessageTimer;
 const DISCOVER_MS = 5 * 60e3;
@@ -183,17 +185,34 @@ function t3Lines() {
   for (const s of statuses) {
     const { text, reconnect } = describeServer(s);
     lines.push({ label: text, enabled: false });
-    if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url) });
+    if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url, s.label) });
   }
   for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
-  for (const d of unconnected(discovered, statuses)) lines.push({ label: `Connect ${d.label}…`, click: () => openPairPage(d.url) });
+  if (discovery.reason) lines.push({ label: `Finding T3 servers: ${discovery.reason}`, enabled: false });
+  for (const d of unconnected(discovery.servers, statuses)) {
+    lines.push(d.compatible ? { label: `Connect ${d.label}…`, click: () => connectServer(d) }
+      : { label: `${d.label}: runs a T3 version Roombai cannot read`, enabled: false });
+  }
   lines.push({ label: 'Paste T3 pairing link', click: pastePairingLink });
   if (pairMessage) lines.push({ label: pairMessage, enabled: false });
   return lines;
 }
 
-// Settings > Connections is where T3 makes a pairing link.
-function openPairPage(url) { shell.openExternal(new URL('/settings/connections', url + '/').href); }
+// Settings > Connections is where T3 makes a pairing link. The page opens wherever the browser is
+// signed in to that server, so the steps name the app to use.
+function openPairPage(url, label) {
+  shell.openExternal(new URL('/settings/connections', url + '/').href);
+  const body = `In T3 (the app where ${label} is connected), open Settings, Connections, Create pairing link, copy it, then choose Paste T3 pairing link in Roombai.`;
+  if (Notification.isSupported()) new Notification({ title: `Connect ${label}`, body, silent: true }).show();
+  else void dialog.showMessageBox({ type: 'info', title: `Connect ${label}`, message: body });
+}
+
+// A server can change address or leave the tailnet between passes, so look again before opening it.
+async function connectServer(d) {
+  await discover();
+  const now = discovery.servers.find((s) => s.environmentId === d.environmentId);
+  openPairPage((now || d).url, d.label);
+}
 
 function showPairMessage(text) {
   pairMessage = text;
@@ -203,19 +222,30 @@ function showPairMessage(text) {
 }
 
 async function pastePairingLink() {
-  const statuses = t3servers.status();
-  const candidates = [...unconnected(discovered, statuses).map((d) => d.url),
-    ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
-  showPairMessage('Pairing…');
-  const result = await pairT3({ text: clipboard.readText(), file: t3File(), fs, candidates, statuses });
-  if (!result.problem) t3servers.reload();
-  showPairMessage(result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`);
+  if (pairing) return;
+  pairing = true;
+  try {
+    const text = clipboard.readText();
+    showPairMessage('Pairing…');
+    await discover();
+    const statuses = t3servers.status();
+    const candidates = [...unconnected(discovery.servers, statuses).filter((d) => d.compatible).map((d) => d.url),
+      ...statuses.filter((s) => describeServer(s).reconnect).map((s) => s.url)];
+    const result = await pairT3({ text, file: t3File(), fs, safeStorage, candidates, statuses });
+    if (!result.problem) t3servers.reload();
+    showPairMessage(result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`);
+  } finally {
+    pairing = false;
+  }
 }
 
 // Rebuilding the tray on each pass also keeps the key expiry lines current.
-async function discover() {
-  discovered = (await discoverT3()).servers;
-  if (tray) tray.setContextMenu(trayMenu());
+function discover() {
+  discovering ||= discoverT3().then((found) => { discovery = found; }).finally(() => {
+    discovering = null;
+    if (tray) tray.setContextMenu(trayMenu());
+  });
+  return discovering;
 }
 
 function t3File() {
