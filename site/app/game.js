@@ -746,7 +746,7 @@ function showTip(r, pin) {
   $('tip-status').textContent = statusText;
   $('tip-status').className = 'chip ' + a.status;
   const prov = (PROVIDER[a.provider] || PROVIDER.custom).name;
-  $('tip-meta').textContent = [prov, a.host && a.host !== 'cli' ? 'via ' + a.host : '', a.project].filter(Boolean).join(' · ');
+  $('tip-meta').textContent = [prov, a.machine ? 'on ' + a.machine : a.host && a.host !== 'cli' ? 'via ' + a.host : '', a.project].filter(Boolean).join(' · ');
   $('tip-title').textContent = a.title;
   $('tip-detail').textContent = a.detail || '';
   $('tip-time').textContent = a.status === 'done' ? 'finished ' + ago(a.since) + ' ago' : a.status === 'idle' ? 'last seen ' + ago(a.lastEventAt) + ' ago' : 'for ' + ago(a.since);

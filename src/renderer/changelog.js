@@ -1,6 +1,14 @@
 // Bundled notes keep the menu's changelog available offline in the app and demo.
 const RELEASE_NOTES = [
   {
+    version: '0.1.12',
+    changes: [
+      'See T3 Code threads from your other machines as roombas, labelled with the machine.',
+      'Find T3 servers on your Tailscale network and connect one with a pasted pairing link.',
+      'The tray shows when each remote key expires and offers Reconnect before it does.',
+    ],
+  },
+  {
     version: '0.1.11',
     changes: [
       'See remaining Claude and Codex allowances beside Snooze, with reset times on hover.',
