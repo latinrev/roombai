@@ -64,8 +64,8 @@ async function tailscaleStatus(exec, clis) {
 
 const readText = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } };
 
-// T3 keeps its id in <T3CODE_HOME or ~/.t3>/userdata/environment-id. A server started with another
-// base dir still names its origin in server-runtime.json, so that origin is asked as a fallback.
+// T3 keeps its id in <T3CODE_HOME or ~/.t3>/userdata/environment-id. An older server that never
+// wrote that file still names its origin in server-runtime.json, so that origin is asked instead.
 async function selfEnvironmentId(t3Home, fetch, timeoutMs) {
   const id = readText(path.join(t3Home, 'userdata', 'environment-id')).trim();
   if (id) return id;
