@@ -157,6 +157,25 @@ Roombai looks for transcript files modified within the last 12 hours and follows
 
 Host detection and **Jump to it** support paths for t3code, the Codex desktop app, VS Code, and terminal sessions. Discovery depends on the host writing a supported transcript format.
 
+### Remote T3 Code servers
+
+Roombai can also watch T3 Code threads that run on other machines. Each top-level thread updated in the last 12 hours becomes a roomba, labeled with the machine it runs on. Roombai checks each server every 10 seconds and only reads from it. It skips archived threads and delegated subagent threads.
+
+1. On the machine that runs T3 Code, issue a read-only token:
+
+   ```bash
+   t3 auth session issue --scope orchestration:read --ttl 30d --label roombai --token-only
+   ```
+
+2. In the tray menu, choose **Remote T3 servers**. Roombai creates `t3-servers.json` and opens it.
+3. Fill in the server URL and the token, then save:
+
+   ```json
+   [{ "url": "https://your-host.your-tailnet.ts.net", "token": "paste-the-token-here" }]
+   ```
+
+Roombai reloads the file when it changes. Where the operating system offers secure storage, Roombai replaces `token` with an encrypted `tokenEnc`. The tray lists each server with its state: `ok`, `unauthorized`, `incompatible` or `unreachable`. The token expires after 30 days. When the tray shows `unauthorized`, issue a new token and paste it in again.
+
 ### GitHub issues and pull requests
 
 Install the GitHub CLI and sign in:
@@ -207,7 +226,7 @@ Merge these entries into your existing `~/.claude/settings.json`; preserve any h
 
 ## Local data and privacy
 
-Transcript processing happens locally. Roombai reads session information including project paths and task text to populate the room and detail cards. Room state, todos, and window settings live in Electron's per-user application data directory as `rooms.json`, `todos.json`, and `window.json`.
+Transcript processing happens locally. Roombai reads session information including project paths and task text to populate the room and detail cards. Room state, todos, and window settings live in Electron's per-user application data directory as `rooms.json`, `todos.json`, and `window.json`. Remote T3 server URLs and tokens live in `t3-servers.json` in the same directory.
 
 Optional **Share roomba count** is off by default. When enabled in a packaged app, it sends only the aggregate roomba count, a random installation ID/credential, and a sequence number to the public community counter once a minute. It never sends project names, paths, session IDs, or conversations. Its random identity is stored locally in `community.json`. Turning it off stops the periodic requests and sends a final zero count. See [counter details](docs/community-counters.md).
 
