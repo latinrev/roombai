@@ -161,6 +161,8 @@ Host detection and **Jump to it** support paths for t3code, the Codex desktop ap
 
 Roombai can also watch T3 Code threads that run on other machines. Each top-level thread updated in the last 12 hours becomes a roomba, labeled with the machine it runs on. Roombai checks each server every 10 seconds and only reads from it. It skips archived threads and delegated subagent threads.
 
+List only other machines. Roombai already shows the T3 Code threads on the machine it runs on, from their local transcripts, so adding that machine's server shows each of its threads twice.
+
 1. On the machine that runs T3 Code, issue a read-only token:
 
    ```bash
@@ -174,7 +176,7 @@ Roombai can also watch T3 Code threads that run on other machines. Each top-leve
    [{ "url": "https://your-host.your-tailnet.ts.net", "token": "paste-the-token-here" }]
    ```
 
-Roombai reloads the file when it changes. Where the operating system offers secure storage, Roombai replaces `token` with an encrypted `tokenEnc`. The tray lists each server with its state: `ok`, `unauthorized`, `incompatible` or `unreachable`. The token expires after 30 days. When the tray shows `unauthorized`, issue a new token and paste it in again.
+The URL must use `https`. Plain `http` works only for `localhost`, `127.0.0.1` and Tailscale `100.x` addresses. Roombai reloads the file when it changes. Where the operating system offers secure storage, Roombai replaces `token` with an encrypted `tokenEnc`. The tray lists each server with its state: `ok`, `unauthorized`, `incompatible` or `unreachable`. It also lists each entry it rejected and why. When a server has no good check for 30 seconds, its roombas leave the room until it answers again. The token expires after 30 days. When the tray shows `unauthorized` or `token unreadable`, issue a new token and paste it in again.
 
 ### GitHub issues and pull requests
 
