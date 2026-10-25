@@ -17,7 +17,7 @@ function desktop(scaleFactor = 1) {
       if (name === 'electron') return electron;
       if (name === 'fs') return { writeFile() {} };
       if (name === 'path') return path;
-      if (name === './watcher' || name === './github') return {};
+      if (name === './watcher' || name === './github' || name === './t3remote') return {};
       throw new Error(`Unexpected dependency: ${name}`);
     },
     process: { env: {} },

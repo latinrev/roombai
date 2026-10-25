@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
 const github = require('./github');
+const { createT3Remote, loadT3Servers } = require('./t3remote');
 
 const SCALE_DEFAULT = 3;
 const ROOM_W = 360; // internal pixel-art resolution
@@ -15,6 +16,8 @@ let updates;
 let community;
 let usage;
 let t3remote;
+let t3problems = [];
+let t3OwnWrite = 0; // mtime of the app's own rewrite of t3-servers.json, which must not trigger a reload
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
@@ -157,6 +160,7 @@ function trayMenu() {
     { type: 'separator' },
     { label: 'Remote T3 servers…', enabled: Boolean(t3File()), click: openT3Servers },
     ...(t3remote?.status() || []).map((s) => ({ label: `${s.label}: ${s.state}${s.error ? ' (' + s.error + ')' : ''}`, enabled: false })),
+    ...t3problems.map((p) => ({ label: `${p.label}: ${p.reason}`, enabled: false })),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -177,38 +181,15 @@ function t3File() {
   return path.join(app.getPath('userData'), 't3-servers.json');
 }
 
-// Plaintext tokens are swapped for safeStorage ciphertext the first time the file is read.
-function loadT3Servers() {
-  let list;
-  try { list = JSON.parse(fs.readFileSync(t3File(), 'utf8')); } catch { return []; }
-  if (!Array.isArray(list)) return [];
-  const canEncrypt = safeStorage.isEncryptionAvailable();
-  let changed = false;
-  const servers = [];
-  for (const entry of list) {
-    if (!entry || !/^https?:\/\//.test(entry.url || '')) continue;
-    if (entry.token && canEncrypt) {
-      entry.tokenEnc = safeStorage.encryptString(entry.token).toString('base64');
-      delete entry.token;
-      changed = true;
-    }
-    let token = entry.token || '';
-    if (!token && entry.tokenEnc && canEncrypt) {
-      try { token = safeStorage.decryptString(Buffer.from(entry.tokenEnc, 'base64')); } catch {}
-    }
-    if (token) servers.push({ url: entry.url, token });
-  }
-  if (changed) try { fs.writeFileSync(t3File(), JSON.stringify(list, null, 2) + '\n', { mode: 0o600 }); } catch {}
-  return servers;
-}
-
 function startT3Remote() {
+  const { servers, problems, mtimeMs } = loadT3Servers({ file: t3File(), fs, safeStorage });
+  if (mtimeMs) t3OwnWrite = mtimeMs;
+  t3problems = problems;
   const old = t3remote;
   if (old) old.stop();
-  const servers = loadT3Servers();
   const urls = new Set(servers.map((s) => s.url.replace(/\/+$/, '')));
   for (const s of old?.status() || []) if (!urls.has(s.url)) watcher.setRemoteAgents(s.url, []);
-  t3remote = require('./t3remote').createT3Remote({
+  t3remote = createT3Remote({
     servers, prev: watcher.agents,
     onAgents: (source, list) => watcher.setRemoteAgents(source, list),
     onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); },
@@ -219,10 +200,10 @@ function startT3Remote() {
 
 function openT3Servers() {
   const file = t3File();
-  if (!fs.existsSync(file)) {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify([{ url: 'https://your-host.your-tailnet.ts.net', token: '' }], null, 2) + '\n', { mode: 0o600 });
-  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    fs.writeFileSync(file, JSON.stringify([{ url: 'https://your-host.your-tailnet.ts.net', token: '' }], null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+  } catch {}
   shell.openPath(file);
 }
 
@@ -297,7 +278,9 @@ app.whenReady().then(() => {
   community.start();
   if (t3File()) {
     startT3Remote();
-    fs.watchFile(t3File(), { interval: 2000 }, startT3Remote);
+    fs.watchFile(t3File(), { interval: 2000 }, (curr, prev) => {
+      if (curr.mtimeMs !== prev.mtimeMs && curr.mtimeMs !== t3OwnWrite) startT3Remote();
+    });
   }
   sendConfig();
 

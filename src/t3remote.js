@@ -1,5 +1,7 @@
 // Read-only polling of remote T3 Code servers. Each remote thread becomes an agent record
 // that carries T3's own status, so the Watcher's ack and hide apply but its transcript rules don't.
+const crypto = require('crypto');
+const path = require('path');
 const { newAgent, firstLine, RECENT_FILE_MS } = require('./watcher');
 
 const POLL_MS = 10e3;
@@ -162,8 +164,79 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
   };
 }
 
-function hostOf(url) {
-  try { return new URL(url).hostname.split('.')[0]; } catch { return String(url); }
+// http is allowed only where traffic stays on this machine or inside the tailnet (100.64.0.0/10).
+function urlProblem(raw) {
+  let u;
+  try { u = new URL(raw); } catch { return 'bad URL'; }
+  if (u.protocol === 'https:') return '';
+  if (u.protocol !== 'http:') return 'bad URL';
+  const tailnet = /^100\.(\d+)\.\d+\.\d+$/.exec(u.hostname);
+  if (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || (tailnet && tailnet[1] >= 64 && tailnet[1] <= 127)) return '';
+  return 'use https; http is only for localhost and Tailscale 100.x addresses';
 }
 
-module.exports = { agentsFromShell, createT3Remote, redact };
+// t3-servers.json: [{ "url": "https://host.tailnet.ts.net", "token": "..." }]. Plaintext tokens are swapped
+// for safeStorage ciphertext as they are read. mtimeMs is set when this call rewrote the file.
+function loadT3Servers({ file, fs, safeStorage }) {
+  const name = path.basename(file);
+  let list;
+  try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) {
+    if (err.code === 'ENOENT') return { servers: [], problems: [] };
+    return { servers: [], problems: [{ label: name, reason: err instanceof SyntaxError ? 'invalid JSON' : 'unreadable' }] };
+  }
+  if (!Array.isArray(list)) return { servers: [], problems: [{ label: name, reason: 'expected a list of servers' }] };
+  let canEncrypt = false;
+  try { canEncrypt = safeStorage.isEncryptionAvailable(); } catch {}
+  const servers = [];
+  const problems = [];
+  let changed = false;
+  for (const [i, entry] of list.entries()) {
+    const reject = (reason) => problems.push({ label: typeof entry?.url === 'string' ? hostOf(entry.url) : `entry ${i + 1}`, reason });
+    if (!entry || typeof entry !== 'object') { reject('expected an object with url and token'); continue; }
+    const badUrl = urlProblem(entry.url);
+    if (badUrl) { reject(badUrl); continue; }
+    if (entry.token !== undefined && typeof entry.token !== 'string') { reject('token must be a string'); continue; }
+    let token = (entry.token || '').trim();
+    if (token && canEncrypt) {
+      try {
+        entry.tokenEnc = safeStorage.encryptString(token).toString('base64');
+        delete entry.token;
+        changed = true;
+      } catch {}
+    } else if (!token && entry.tokenEnc) {
+      try { if (canEncrypt) token = safeStorage.decryptString(Buffer.from(String(entry.tokenEnc), 'base64')); } catch {}
+      if (!token) { reject('token unreadable; paste it again'); continue; }
+    }
+    if (!token) { reject('token is empty'); continue; }
+    servers.push({ url: entry.url, token });
+  }
+  let mtimeMs;
+  if (changed) {
+    try { mtimeMs = writeAtomic(fs, file, JSON.stringify(list, null, 2) + '\n'); } catch {
+      problems.push({ label: name, reason: 'could not save encrypted tokens; the file still holds them in plain text' });
+    }
+  }
+  return { servers, problems, mtimeMs };
+}
+
+function writeAtomic(fs, file, text) {
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomBytes(6).toString('hex')}.tmp`);
+  try {
+    fs.writeFileSync(tmp, text, { mode: 0o600, flag: 'wx' });
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch {}
+    throw err;
+  }
+  fs.chmodSync(file, 0o600);
+  return fs.statSync(file).mtimeMs;
+}
+
+// The machine name from a URL: the first label of a host name, or a whole IP address.
+function hostOf(url) {
+  let host;
+  try { host = new URL(url).hostname; } catch { return String(url); }
+  return /^[\d.]+$|^\[/.test(host) ? host : host.split('.')[0];
+}
+
+module.exports = { agentsFromShell, createT3Remote, loadT3Servers, redact };

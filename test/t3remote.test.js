@@ -1,8 +1,11 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
 const zlib = require('node:zlib');
 const { test } = require('node:test');
-const { createT3Remote } = require('../src/t3remote');
+const { createT3Remote, loadT3Servers } = require('../src/t3remote');
 const { Watcher } = require('../src/watcher');
 
 const TOKEN = 'secret-token-abc123';
@@ -216,3 +219,89 @@ for (const outage of ['returns 500', 'closes']) {
     assert.deepEqual([...seen], ['working']);
   });
 }
+
+// Stands in for Electron's safeStorage: "enc:" ciphertext, and a token named "boom" fails to encrypt.
+const safeStorage = {
+  isEncryptionAvailable: () => true,
+  encryptString: (text) => { if (text === 'boom') throw new Error('keychain locked'); return Buffer.from('enc:' + text); },
+  decryptString: (buf) => { const text = buf.toString(); if (!text.startsWith('enc:')) throw new Error('bad ciphertext'); return text.slice(4); },
+};
+
+function configFile(t, contents) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'roombai-t3-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 't3-servers.json');
+  if (contents !== undefined) fs.writeFileSync(file, typeof contents === 'string' ? contents : JSON.stringify(contents), { mode: 0o644 });
+  return file;
+}
+
+test('t3-servers.json: good entries load and get encrypted, bad ones become problem lines', (t) => {
+  const file = configFile(t, [
+    { url: 'https://build-box.tail0784c2.ts.net/', token: ' plain-token ' },
+    { url: 'https://stored.tail0784c2.ts.net', tokenEnc: Buffer.from('enc:stored-token').toString('base64') },
+    { url: 'http://100.101.1.2:3773', token: 'tailnet-token' },
+    { url: 'http://localhost:3773', token: 'boom' },
+    { url: 'not a url', token: 'x' },
+    { url: 'http://build-box.example.com', token: 'x' },
+    { url: 'http://100.12.1.2', token: 'x' },
+    { url: 'https://numbers.ts.net', token: 42 },
+    { url: 'https://blank.ts.net', token: '' },
+    { url: 'https://garbled.ts.net', tokenEnc: 'bm90LWVuY3J5cHRlZA==' },
+    'just a string',
+  ]);
+  const loaded = loadT3Servers({ file, fs, safeStorage });
+  assert.deepEqual(loaded.servers, [
+    { url: 'https://build-box.tail0784c2.ts.net/', token: 'plain-token' },
+    { url: 'https://stored.tail0784c2.ts.net', token: 'stored-token' },
+    { url: 'http://100.101.1.2:3773', token: 'tailnet-token' },
+    { url: 'http://localhost:3773', token: 'boom' },
+  ]);
+  assert.deepEqual(loaded.problems, [
+    { label: 'not a url', reason: 'bad URL' },
+    { label: 'build-box', reason: 'use https; http is only for localhost and Tailscale 100.x addresses' },
+    { label: '100.12.1.2', reason: 'use https; http is only for localhost and Tailscale 100.x addresses' },
+    { label: 'numbers', reason: 'token must be a string' },
+    { label: 'blank', reason: 'token is empty' },
+    { label: 'garbled', reason: 'token unreadable; paste it again' },
+    { label: 'entry 11', reason: 'expected an object with url and token' },
+  ]);
+
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.deepEqual(saved.slice(0, 4), [
+    { url: 'https://build-box.tail0784c2.ts.net/', tokenEnc: Buffer.from('enc:plain-token').toString('base64') },
+    { url: 'https://stored.tail0784c2.ts.net', tokenEnc: Buffer.from('enc:stored-token').toString('base64') },
+    { url: 'http://100.101.1.2:3773', tokenEnc: Buffer.from('enc:tailnet-token').toString('base64') },
+    { url: 'http://localhost:3773', token: 'boom' },
+  ], 'tokens are encrypted in place; one that fails to encrypt stays as it was');
+  assert.equal(saved.length, 11, 'rejected entries stay in the file for the user to fix');
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  assert.equal(loaded.mtimeMs, fs.statSync(file).mtimeMs);
+  assert.deepEqual(fs.readdirSync(path.dirname(file)), ['t3-servers.json'], 'no temp file left behind');
+
+  const again = loadT3Servers({ file, fs, safeStorage });
+  assert.deepEqual(again.servers, loaded.servers);
+  assert.equal(again.mtimeMs, undefined, 'an already encrypted file is not rewritten');
+});
+
+test('t3-servers.json: a missing file is empty, broken JSON or a non-list is one problem', (t) => {
+  assert.deepEqual(loadT3Servers({ file: configFile(t), fs, safeStorage }), { servers: [], problems: [] });
+  assert.deepEqual(loadT3Servers({ file: configFile(t, '[{ "url": '), fs, safeStorage }),
+    { servers: [], problems: [{ label: 't3-servers.json', reason: 'invalid JSON' }] });
+  assert.deepEqual(loadT3Servers({ file: configFile(t, { url: 'https://a.ts.net' }), fs, safeStorage }),
+    { servers: [], problems: [{ label: 't3-servers.json', reason: 'expected a list of servers' }] });
+});
+
+test('t3-servers.json: without secure storage, plaintext tokens work and stored ones ask for a new paste', (t) => {
+  const file = configFile(t, [
+    { url: 'https://plain.ts.net', token: 'plain-token' },
+    { url: 'https://stored.ts.net', tokenEnc: Buffer.from('enc:stored-token').toString('base64') },
+  ]);
+  const before = fs.readFileSync(file, 'utf8');
+  const noStorage = { isEncryptionAvailable: () => false };
+  assert.deepEqual(loadT3Servers({ file, fs, safeStorage: noStorage }), {
+    servers: [{ url: 'https://plain.ts.net', token: 'plain-token' }],
+    problems: [{ label: 'stored', reason: 'token unreadable; paste it again' }],
+    mtimeMs: undefined,
+  });
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+});
