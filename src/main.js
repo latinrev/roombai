@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, Notification, nativeImage, shell, clipboard, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Watcher, PORT } = require('./watcher');
@@ -14,6 +14,7 @@ let watcher;
 let updates;
 let community;
 let usage;
+let t3remote;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
 const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
 const COLLAPSED_H = 12;
@@ -154,6 +155,9 @@ function trayMenu() {
     { label: 'Mute alerts', type: 'checkbox', checked: settings.muted, click: (i) => setOption('muted', i.checked) },
     { label: `Event endpoint: http://127.0.0.1:${PORT}/event`, enabled: false },
     { type: 'separator' },
+    { label: 'Remote T3 servers…', enabled: Boolean(t3File()), click: openT3Servers },
+    ...(t3remote?.status() || []).map((s) => ({ label: `${s.label}: ${s.state}${s.error ? ' (' + s.error + ')' : ''}`, enabled: false })),
+    { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 }
@@ -163,6 +167,63 @@ function buildTray() {
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setContextMenu(trayMenu());
   tray.on('click', () => setOption('hidden', win.isVisible()));
+}
+
+// Remote T3 Code servers to watch, from t3-servers.json: [{ "url": "https://host.tailnet.ts.net", "token": "..." }].
+// Dev runs only poll a server when ROOMBAI_T3_SERVERS names a test config.
+function t3File() {
+  if (process.env.ROOMBAI_T3_SERVERS) return process.env.ROOMBAI_T3_SERVERS;
+  if (process.env.ROOM_SHOT || process.argv.includes('--demo')) return null;
+  return path.join(app.getPath('userData'), 't3-servers.json');
+}
+
+// Plaintext tokens are swapped for safeStorage ciphertext the first time the file is read.
+function loadT3Servers() {
+  let list;
+  try { list = JSON.parse(fs.readFileSync(t3File(), 'utf8')); } catch { return []; }
+  if (!Array.isArray(list)) return [];
+  const canEncrypt = safeStorage.isEncryptionAvailable();
+  let changed = false;
+  const servers = [];
+  for (const entry of list) {
+    if (!entry || !/^https?:\/\//.test(entry.url || '')) continue;
+    if (entry.token && canEncrypt) {
+      entry.tokenEnc = safeStorage.encryptString(entry.token).toString('base64');
+      delete entry.token;
+      changed = true;
+    }
+    let token = entry.token || '';
+    if (!token && entry.tokenEnc && canEncrypt) {
+      try { token = safeStorage.decryptString(Buffer.from(entry.tokenEnc, 'base64')); } catch {}
+    }
+    if (token) servers.push({ url: entry.url, token });
+  }
+  if (changed) try { fs.writeFileSync(t3File(), JSON.stringify(list, null, 2) + '\n', { mode: 0o600 }); } catch {}
+  return servers;
+}
+
+function startT3Remote() {
+  const old = t3remote;
+  if (old) old.stop();
+  const servers = loadT3Servers();
+  const urls = new Set(servers.map((s) => s.url.replace(/\/+$/, '')));
+  for (const s of old?.status() || []) if (!urls.has(s.url)) watcher.setRemoteAgents(s.url, []);
+  t3remote = require('./t3remote').createT3Remote({
+    servers, prev: watcher.agents,
+    onAgents: (source, list) => watcher.setRemoteAgents(source, list),
+    onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); },
+  });
+  t3remote.start();
+  if (tray) tray.setContextMenu(trayMenu());
+}
+
+function openT3Servers() {
+  const file = t3File();
+  if (!fs.existsSync(file)) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify([{ url: 'https://your-host.your-tailnet.ts.net', token: '' }], null, 2) + '\n', { mode: 0o600 });
+  }
+  shell.openPath(file);
 }
 
 // every setting goes through here, from the in-game menu and the tray alike
@@ -234,6 +295,10 @@ app.whenReady().then(() => {
     getCount: () => new Set(watcher.snapshot().map(agent => agent.id)).size,
   });
   community.start();
+  if (t3File()) {
+    startT3Remote();
+    fs.watchFile(t3File(), { interval: 2000 }, startT3Remote);
+  }
   sendConfig();
 
   ipcMain.on('set-ignore', (_e, ignore) => win.setIgnoreMouseEvents(ignore, { forward: true }));
@@ -313,4 +378,4 @@ function jumpTo(a) {
 }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (watcher) watcher.stop(); });
+app.on('before-quit', () => { if (community) community.dispose(); if (updates) updates.dispose(); if (usage) usage.dispose(); if (t3remote) t3remote.stop(); if (watcher) watcher.stop(); });
