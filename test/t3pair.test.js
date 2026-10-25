@@ -139,6 +139,16 @@ test('a server that grants more than read access is refused and nothing is store
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
 });
 
+test('a keychain that fails to encrypt leaves the file untouched instead of writing the key in plain text', async (t) => {
+  const server = await t3Server(t);
+  const file = configFile(t, [{ url: 'https://kept.ts.net', token: 'keep-me' }]);
+  const before = fs.readFileSync(file, 'utf8');
+  const failing = { isEncryptionAvailable: () => true, encryptString: () => { throw new Error('keychain locked'); } };
+  const result = await pairT3({ text: `${BOX}/pair#token=${CRED}`, file, fs, safeStorage: failing, fetch: routed({ [BOX]: server.local }) });
+  assert.deepEqual(result, { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' });
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+});
+
 test('a credential that cannot grant read access is refused', async (t) => {
   const server = await t3Server(t, { onExchange: () => [400, { _tag: 'EnvironmentRequestInvalidError', code: 'invalid_request', reason: 'scope_not_granted', traceId: 'x' }] });
   const file = configFile(t);

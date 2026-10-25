@@ -112,9 +112,12 @@ async function fetchEnvironment(fetch, url, timeoutMs) {
     protocol: env.orchestrationProtocolVersion };
 }
 
-// The token sealed by the OS keychain, or '' when this machine cannot encrypt it.
+// The token sealed by the OS keychain, '' when this machine cannot encrypt, or null when encrypting failed.
 function sealToken(safeStorage, token) {
-  try { return safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(token).toString('base64') : ''; } catch { return ''; }
+  let available = false;
+  try { available = safeStorage.isEncryptionAvailable(); } catch {}
+  if (!available) return '';
+  try { return safeStorage.encryptString(token).toString('base64'); } catch { return null; }
 }
 
 function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now, onAgents = () => {},

@@ -122,11 +122,12 @@ async function pairOnce({ host, credential }, { file, fs, safeStorage, candidate
 
 // Synchronous from read to rename, so an entry another pairing or a hand edit added meanwhile stays.
 function save({ file, fs, safeStorage, statuses, url, env, token, expiresAt }) {
+  const tokenEnc = sealToken(safeStorage, token);
+  if (tokenEnc === null) return { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' };
   const saved = readList(fs, file);
   if (saved.problem) return { problem: 't3-servers.json became unreadable while pairing; fix it, then pair again with a new link' };
   const replaced = new Set([url, ...statuses.filter((s) => s.environmentId === env.environmentId).map((s) => trimUrl(s.url))]);
   const list = saved.list.filter((entry) => !(typeof entry?.url === 'string' && replaced.has(trimUrl(entry.url))));
-  const tokenEnc = sealToken(safeStorage, token);
   list.push(tokenEnc ? { url, expiresAt, tokenEnc } : { url, expiresAt, token });
   const written = writeAtomic(fs, file, JSON.stringify(list, null, 2) + '\n');
   if (written.problem && written.retry) return { problem: 'could not save t3-servers.json; pair again with a new link' };
