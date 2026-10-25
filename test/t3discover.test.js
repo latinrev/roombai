@@ -43,15 +43,17 @@ const routed = (routes) => (url, opts) => {
 };
 
 const ME = 101;
+const TAGGED = 2147455655;
 const peer = (DNSName, ip, Online = true, extra = {}) => ({ DNSName, Online, UserID: ME, TailscaleIPs: [ip, 'fd7a:115c:a1e0::1'], ...extra });
 
-test('discovery lists each online T3 peer of this user once, prefers https, and leaves out itself', async (t) => {
+test('discovery lists each online T3 peer of this user or tagged in their tailnet once, prefers https, and leaves out itself', async (t) => {
   const linux = await t3(t, 'env-linux', 'joel-linux');
   const mac = await t3(t, 'env-mac', 'mac-studio');
   const offline = await t3(t, 'env-off', 'sleeping');
   const pseudo = await t3(t, 'env-funnel', 'funnel');
   const self = await t3(t, 'env-self', 'this-pc');
   const shared = await t3(t, 'env-shared', 'friends-box');
+  const runner = await t3(t, 'env-runner', 'ci-runner');
   const broken = await t3(t, 'env-bad', 42);
   const garbled = await t3(t, '', 'nameless');
   const older = await t3(t, 'env-old', 'old-t3', { orchestrationProtocolVersion: 1 });
@@ -60,6 +62,7 @@ test('discovery lists each online T3 peer of this user once, prefers https, and 
 
   const { clis, exec, dir } = fakeTailscale(t, { status: {
     BackendState: 'Running',
+    MagicDNSSuffix: 'tail.ts.net',
     Self: { DNSName: 'this-pc.tail.ts.net.', Online: true, UserID: ME, TailscaleIPs: ['100.64.0.1'] },
     Peer: {
       a: peer('joel-linux.tail.ts.net.', '100.64.0.2'),
@@ -69,8 +72,11 @@ test('discovery lists each online T3 peer of this user once, prefers https, and 
       e: peer('printer.tail.ts.net.', '100.64.0.6'),
       f: peer('this-pc-wsl.tail.ts.net.', '100.64.0.7'),
       g: peer('slow.tail.ts.net.', '100.64.0.8'),
-      h: peer('friends-box.other.ts.net.', '100.64.0.9', true, { ShareeNode: true, UserID: 202 }),
+      h: peer('friends-box.other.ts.net.', '100.64.0.9', true, { UserID: 202 }),
       i: peer('coworker.tail.ts.net.', '100.64.0.10', true, { UserID: 303 }),
+      l: peer('guest-laptop.other.ts.net.', '100.64.0.13', true, { ShareeNode: true, UserID: 404 }),
+      m: peer('ci-runner.tail.ts.net.', '100.64.0.14', true, { UserID: TAGGED, Tags: ['tag:server'] }),
+      n: peer('their-runner.other.ts.net.', '100.64.0.15', true, { UserID: TAGGED, Tags: ['tag:server'] }),
       j: peer('odd.tail.ts.net.', '100.64.0.11'),
       k: peer('old-t3.tail.ts.net.', '100.64.0.12'),
     },
@@ -87,13 +93,15 @@ test('discovery lists each online T3 peer of this user once, prefers https, and 
     'https://this-pc.tail.ts.net': self, 'http://100.64.0.1:3773': self,
     'http://100.64.0.7:3773': self,
     'https://slow.tail.ts.net': hang,
-    'https://friends-box.other.ts.net': shared, 'https://coworker.tail.ts.net': shared,
+    'https://friends-box.other.ts.net': shared, 'https://coworker.tail.ts.net': shared, 'https://guest-laptop.other.ts.net': shared,
+    'https://ci-runner.tail.ts.net': runner, 'https://their-runner.other.ts.net': shared,
     'https://odd.tail.ts.net': broken, 'http://100.64.0.11:3773': garbled,
     'https://old-t3.tail.ts.net': older,
   });
   const started = Date.now();
   const found = await discoverT3({ clis, exec, fetch, t3Home: dir, timeoutMs: 300 });
   assert.deepEqual(found, { reason: '', servers: [
+    { environmentId: 'env-runner', label: 'ci-runner', url: 'https://ci-runner.tail.ts.net', compatible: true },
     { environmentId: 'env-linux', label: 'joel-linux', url: 'https://joel-linux.tail.ts.net', compatible: true },
     { environmentId: 'env-mac', label: 'mac-studio', url: 'http://100.64.0.3:3773', compatible: true },
     { environmentId: 'env-bad', label: 'odd', url: 'https://odd.tail.ts.net', compatible: true },

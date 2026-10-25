@@ -14,12 +14,17 @@ const FIXED_CLI = {
 
 const tailscaleClis = (platform = process.platform) => [...(FIXED_CLI[platform] || []), 'tailscale'];
 
-// Only this user's own machines: a node shared in by someone else is not theirs to pair with.
-// Linux lists funnel-ingress-node pseudo-peers with an empty DNSName; they are never T3 hosts.
+// Only this user's machines and the tagged machines of their tailnet. A tagged node carries the
+// tagged-devices UserID, so its MagicDNS suffix shows whose tailnet it is in. A node shared in by
+// someone else has another UserID or suffix. ShareeNode marks nodes of people this user shared a
+// node with. Linux lists funnel-ingress-node pseudo-peers with an empty DNSName; they are never T3 hosts.
 function probeUrls(status) {
   const urls = [];
+  const suffix = status?.MagicDNSSuffix ? `.${status.MagicDNSSuffix}` : null;
+  const ownTagged = (peer) => peer.Tags?.length > 0 && suffix !== null && peer.DNSName.replace(/\.$/, '').endsWith(suffix);
   for (const peer of Object.values(status?.Peer || {})) {
-    if (!peer?.Online || !peer.DNSName || peer.ShareeNode || peer.UserID !== status.Self?.UserID) continue;
+    if (!peer?.Online || !peer.DNSName || peer.ShareeNode) continue;
+    if (peer.UserID !== status.Self?.UserID && !ownTagged(peer)) continue;
     urls.push(`https://${peer.DNSName.replace(/\.$/, '')}`);
     const ip4 = (peer.TailscaleIPs || []).find((ip) => /^\d+\.\d+\.\d+\.\d+$/.test(ip));
     if (ip4) urls.push(`http://${ip4}:${PORT}`);
