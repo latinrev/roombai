@@ -18,4 +18,6 @@ contextBridge.exposeInMainWorld('bridge', {
   saveRooms: (state) => ipcRenderer.send('rooms-save', state),
   github: (cwds, force) => ipcRenderer.invoke('github', cwds, force),
   openUrl: (url) => ipcRenderer.send('open-url', url),
+  t3Connect: (key) => ipcRenderer.invoke('t3-connect', key),
+  t3Paste: () => ipcRenderer.invoke('t3-paste'),
 });

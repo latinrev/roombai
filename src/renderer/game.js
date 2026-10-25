@@ -510,7 +510,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
-  closeChangelog();
+  closeCards();
   const p = toInternal(e);
   if (e.button === 2) return;
   const r = roombaAt(p.x, p.y);
@@ -705,7 +705,7 @@ $('todo-form').addEventListener('submit', (e) => {
 });
 
 function showTodoCard(t, pin) {
-  if (!changelogEl.hidden) { if (!pin) return; closeChangelog(); }
+  if (cardOpen()) { if (!pin) return; closeCards(); }
   if (pin) pinnedTodo = t;
   const n = noteLayout().find((k) => k.todo === t);
   $('tcard-status').textContent = t.done ? 'done' : 'todo';
@@ -739,7 +739,7 @@ window.addEventListener('keydown', (e) => {
 // ---------- tooltip ----------
 const tipEl = document.getElementById('tip');
 function showTip(r, pin) {
-  if (!changelogEl.hidden) { if (!pin) return; closeChangelog(); }
+  if (cardOpen()) { if (!pin) return; closeCards(); }
   if (pin) pinned = r;
   const a = r.agent;
   const statusText = { working: 'working', waiting: 'needs you', stuck: 'stuck', done: 'done', idle: 'napping' }[a.status];
@@ -1429,7 +1429,7 @@ async function requestGh(force) {
 setInterval(() => { if (boardFace !== 0) requestGh(false); }, 60e3);
 
 function showGhCard(n, pin) {
-  if (!changelogEl.hidden) { if (!pin) return; closeChangelog(); }
+  if (cardOpen()) { if (!pin) return; closeCards(); }
   const it = n.issue || n.pr;
   if (pin) { pinnedGh = it; pinnedGhNote = n; }
   $('tcard-status').textContent = n.issue ? 'issue #' + it.number : (it.draft ? 'draft PR #' : 'PR #') + it.number;
@@ -1795,7 +1795,7 @@ function reseedStains(key) {
 }
 
 function switchRoom(key) {
-  closeChangelog();
+  closeCards();
   if (room && room.key === key) { closeRoomList(); return; }
   snapshotRoom();
   hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList();
@@ -1847,7 +1847,7 @@ function refreshRoomList() {
 
 function toggleRoomList() { if (roomsEl.hidden) openRoomList(); else closeRoomList(); }
 function openRoomList() {
-  closeChangelog();
+  closeCards();
   hideTip(); hideTodoCard(); closeTodoPop();
   refreshRoomList();
   renderRoomList();
@@ -1958,6 +1958,10 @@ function closeChangelog(returnToMenu = false) {
   if (returnToMenu) { toggleMenu(); $('opt-changelog').focus(); }
 }
 
+// The changelog and the T3 wizard are cards that take the menu's place.
+const cardOpen = () => !changelogEl.hidden || !t3Wiz.hidden;
+function closeCards() { closeChangelog(); closeWiz(); }
+
 function applyConfig(cfg) {
   appCfg = { ...appCfg, ...cfg };
   applyScale(cfg.scale);
@@ -1968,7 +1972,7 @@ function applyConfig(cfg) {
   document.body.style.transform = head ? `translateY(${head}px)` : '';
   viewTop = appCfg.collapsed ? COLLAPSED_TOP : 0;
   canvas.style.top = -viewTop * scale + 'px';
-  if (appCfg.collapsed) { hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList(); closeChangelog(); }
+  if (appCfg.collapsed) { hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList(); closeCards(); }
   syncMenu();
   if (!changelogEl.hidden) positionChangelog();
 }
@@ -1996,20 +2000,211 @@ function syncMenu() {
   for (const b of document.querySelectorAll('#opt-size button')) b.classList.toggle('on', Number(b.dataset.v) === appCfg.size);
   for (const b of document.querySelectorAll('#opt-place button')) b.classList.toggle('on', b.dataset.v === appCfg.anchor);
   $('opt-roll').textContent = appCfg.collapsed ? 'Unroll' : 'Roll up';
+  syncT3();
   if (!menuEl.hidden) positionMenu();
 }
 
-function positionMenu() {
+// ---------- T3 machines on other computers, connected from the menu ----------
+const T3_SHORT = { found: 'not connected', unauthorized: 'reconnect', unreachable: 'offline', incompatible: 'T3 too old', connecting: 'checking…' };
+const T3_PIPS = ['Pick', 'In T3', 'Paste'];
+const t3Section = $('t3-section');
+const t3Wiz = $('t3wiz');
+let t3Drawn = '';
+let wiz = null; // the open wizard: { step: 1 | 2 | 3, key, label, result, opener }
+
+const t3Dot = (m) => (m.action === 'reconnect' ? 'stuck' : m.state === 'connected' ? 'done' : m.state === 'found' ? 'waiting' : 'idle');
+const t3Verb = (m) => (m.action === 'reconnect' ? 'Reconnect' : 'Connect');
+function t3Short(m) {
+  if (m.action === 'reconnect') return 'reconnect';
+  if (m.state !== 'connected') return T3_SHORT[m.state] || m.state;
+  return m.expiresInDays === undefined ? 'connected' : `key ${m.expiresInDays || '<1'}d`;
+}
+
+function t3Node(tag, className, text) {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text) n.textContent = text;
+  return n;
+}
+
+function t3Button(text, className, key, onClick) {
+  const b = t3Node('button', className, text);
+  b.type = 'button';
+  b.dataset.t3 = key;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function refocus(root, key) {
+  const el = key ? root.querySelector(`[data-t3="${CSS.escape(key)}"]`) : null;
+  el?.focus();
+  return el;
+}
+
+function syncT3() {
+  const t3 = appCfg.t3;
+  t3Section.hidden = !(t3?.available && window.bridge.t3Connect && window.bridge.t3Paste);
+  if (t3Section.hidden) { closeWiz(); return; }
+  if (!t3Wiz.hidden) drawWiz();
+  const drawn = JSON.stringify([t3.machines, t3.open, t3.discovery]);
+  if (drawn === t3Drawn) return;
+  t3Drawn = drawn;
+  $('t3-toggle').setAttribute('aria-expanded', String(t3.open));
+  $('t3-count').textContent = t3.machines.length ? String(t3.machines.length) : '';
+  $('t3-badge').hidden = !t3.toSetUp;
+  $('t3-badge').textContent = `${t3.toSetUp} to set up`;
+  const body = $('t3-body');
+  body.hidden = !t3.open;
+  const focused = body.contains(document.activeElement) && document.activeElement.dataset.t3;
+  body.replaceChildren();
+  for (const m of t3.machines) {
+    const row = t3Node('div', 't3-row');
+    const text = t3Node('span', 't3-text');
+    text.append(t3Node('span', 't3-name', m.label), t3Node('span', 't3-short ' + t3Dot(m), t3Short(m)));
+    row.append(t3Node('span', 'dot ' + t3Dot(m)), text);
+    if (m.action) {
+      const b = t3Button(t3Verb(m), 't3-connect', 'connect:' + m.key, () => openWiz({ step: 2, key: m.key, label: m.label }, 'connect:' + m.key));
+      b.setAttribute('aria-label', `${t3Verb(m)} ${m.label}`);
+      row.append(b);
+    }
+    body.append(row);
+  }
+  if (t3.discovery.missing && !t3.machines.length) {
+    body.append(t3Node('div', 'hint', 'Install Tailscale to find T3 on your other machines.'));
+  } else {
+    if (t3.discovery.reason && !t3.discovery.missing) body.append(t3Node('div', 'hint', `Finding T3 servers: ${t3.discovery.reason}`));
+    body.append(t3Button('Connect a machine', 't3-add', 'add', () => openWiz({ step: 1 }, 'add')));
+  }
+  refocus(body, focused);
+}
+
+function setT3Open(open) {
+  appCfg.t3 = { ...appCfg.t3, open };
+  syncT3();
+  window.bridge.setOption('t3-expanded', open);
+}
+
+// The wizard replaces the menu, like the changelog.
+function openWiz(start, opener) {
+  menuEl.hidden = true;
+  wiz = { step: 1, key: null, label: '', result: null, ...start, opener };
+  t3Wiz.hidden = false;
+  drawWiz(true);
+  Sfx.squeak();
+}
+
+function closeWiz(returnToMenu = false) {
+  if (t3Wiz.hidden) return;
+  const { opener, result } = wiz;
+  t3Wiz.hidden = true;
+  wiz = null;
+  if (!returnToMenu) return;
+  if (result?.ok && !appCfg.t3.open) setT3Open(true);
+  toggleMenu();
+  if (!refocus(t3Section, opener)) $('t3-toggle').focus();
+}
+
+function goWiz(patch) {
+  wiz = { ...wiz, ...patch };
+  drawWiz(true);
+}
+
+// The wizard opens under the roof like the menu. When the room is too short for its tallest screen,
+// it opens in the see-through space above the roof instead, like the changelog, so it never covers the roof buttons.
+const WIZ_TALLEST = 200;
+function positionWiz() {
+  positionMenu(t3Wiz);
+  if (!head || parseFloat(t3Wiz.style.maxHeight) >= WIZ_TALLEST) return;
+  const roofTop = (ROOF_Y - viewTop) * scale;
+  t3Wiz.style.maxHeight = head + roofTop - 8 + 'px';
+  t3Wiz.style.top = roofTop - t3Wiz.offsetHeight - 4 + 'px';
+}
+
+async function pasteInWiz() {
+  const result = await window.bridge.t3Paste();
+  if (wiz && result) goWiz({ result });
+}
+
+function drawWiz(focusMain = false) {
+  const t3 = appCfg.t3;
+  const focused = !focusMain && t3Wiz.contains(document.activeElement) && document.activeElement.dataset.t3;
+  const pips = t3Node('ol', 't3-pips');
+  T3_PIPS.forEach((name, i) => {
+    const pip = t3Node('li', 't3-pip' + (i + 1 === wiz.step ? ' on' : i + 1 < wiz.step ? ' past' : ''), `${i + 1} ${name}`);
+    if (i + 1 === wiz.step) pip.setAttribute('aria-current', 'step');
+    pips.append(pip);
+  });
+  const close = t3Button('×', 't3-x', 'close', () => closeWiz(true));
+  close.setAttribute('aria-label', 'Close');
+  const head = t3Node('div', 't3-wiz-head');
+  head.append(pips, close);
+  const q = t3Node('div', 't3-wiz-q');
+  q.id = 't3wiz-q';
+  const body = t3Node('div', 't3-wiz-body');
+  const foot = t3Node('div', 'row t3-wiz-foot');
+  body.append(q);
+  let main;
+  if (wiz.step === 1) {
+    q.textContent = 'Which machine?';
+    for (const m of t3.machines.filter((k) => k.action)) {
+      const b = t3Button('', 't3-pick', 'pick:' + m.key, () => goWiz({ step: 2, key: m.key, label: m.label }));
+      b.append(t3Node('span', 'dot ' + t3Dot(m)), t3Node('span', 't3-name', m.label), t3Node('span', 't3-short', t3Short(m)), t3Node('span', 't3-chev', '›'));
+      body.append(b);
+      main ||= b;
+    }
+    const other = t3Button('', 't3-pick t3-other', 'other', () => goWiz({ step: 3, key: null, label: '' }));
+    other.append(t3Node('span', 't3-name', "My machine isn't listed"), t3Node('span', 't3-chev', '›'));
+    body.append(other);
+    main ||= other;
+  } else if (wiz.step === 2) {
+    q.textContent = 'Do this in T3';
+    main = t3Button('Open T3 ↗', 't3-big t3-open-t3', 'open-t3', () => window.bridge.t3Connect(wiz.key));
+    const steps = t3Node('ol', 't3-wiz-steps');
+    steps.append(t3Node('li', '', `In T3, switch to ${wiz.label}.`), t3Node('li', '', 'Open Settings, Connections, Create pairing link, and copy the link.'));
+    body.append(main, steps);
+    foot.append(t3Button('‹ Back', 't3-back', 'back', () => goWiz({ step: 1 })), t3Button('I copied it ›', 't3-next', 'next', () => goWiz({ step: 3 })));
+  } else if (wiz.result?.ok) {
+    q.textContent = 'Paste your link';
+    const done = t3Node('div', 't3-done');
+    done.setAttribute('role', 'status');
+    done.append(t3Node('div', 't3-done-big', `✓ ${wiz.result.message}`), t3Node('div', 'hint', 'Its threads show up in the room within 10 seconds.'));
+    body.append(done);
+    main = t3Button('Done', 't3-next', 'done', () => closeWiz(true));
+    foot.append(main);
+  } else {
+    q.textContent = 'Paste your link';
+    body.append(t3Node('div', 't3-wiz-note', `Copy the pairing link${wiz.label ? ` for ${wiz.label}` : ''}, then click Paste link. Roombai reads the clipboard once.`));
+    main = t3Button(t3.pairing.busy ? 'Pairing…' : 'Paste link', 't3-big t3-paste-big', 'paste', pasteInWiz);
+    main.setAttribute('aria-busy', String(t3.pairing.busy));
+    body.append(main);
+    if (wiz.result) {
+      const bad = t3Node('div', 't3-done bad', wiz.result.message);
+      bad.setAttribute('role', 'alert');
+      body.append(bad);
+    }
+    foot.append(t3Button('‹ Back', 't3-back', 'back', () => goWiz({ step: wiz.key ? 2 : 1, result: null })));
+  }
+  t3Wiz.replaceChildren(head, body, foot);
+  positionWiz();
+  if (focusMain) main.focus();
+  else refocus(t3Wiz, focused);
+}
+
+function positionMenu(el = menuEl) {
   // Reserve the roof controls; scroll the panel instead of moving it over them.
   const top = (ROOF_Y + 10 - viewTop) * scale;
-  menuEl.style.maxHeight = Math.max(0, window.innerHeight - head - top - 4) + 'px';
-  menuEl.style.left = Math.max(4, Math.min(W * scale - menuEl.offsetWidth - 8, window.innerWidth - menuEl.offsetWidth - 4)) + 'px';
-  menuEl.style.top = top + 'px';
+  el.style.maxHeight = Math.max(0, window.innerHeight - head - top - 4) + 'px';
+  el.style.left = Math.max(4, Math.min(W * scale - el.offsetWidth - 8, window.innerWidth - el.offsetWidth - 4)) + 'px';
+  el.style.top = top + 'px';
 }
-window.addEventListener('resize', () => { if (!menuEl.hidden) positionMenu(); if (!changelogEl.hidden) positionChangelog(); });
+window.addEventListener('resize', () => {
+  if (!menuEl.hidden) positionMenu();
+  if (!t3Wiz.hidden) positionWiz();
+  if (!changelogEl.hidden) positionChangelog();
+});
 
 function toggleMenu() {
-  closeChangelog();
+  closeCards();
   if (!menuEl.hidden) { menuEl.hidden = true; return; }
   if (appCfg.collapsed) window.bridge.setOption('collapsed', false);
   hideTip(); hideTodoCard(); closeTodoPop(); closeRoomList();
@@ -2023,6 +2218,7 @@ $('opt-ontop').addEventListener('change', (e) => window.bridge.setOption('onTop'
 $('opt-update').addEventListener('click', () => window.bridge.setOption('update', true));
 $('opt-check-update').addEventListener('click', () => window.bridge.setOption('check-update', true));
 $('opt-changelog').addEventListener('click', openChangelog);
+$('t3-toggle').addEventListener('click', () => setT3Open(!appCfg.t3.open));
 $('changelog-close').addEventListener('click', () => closeChangelog(true));
 $('opt-share-count').addEventListener('change', (e) => window.bridge.setOption('share-count', e.target.checked));
 $('opt-sound').addEventListener('change', (e) => window.bridge.setOption('muted', !e.target.checked));
@@ -2033,7 +2229,9 @@ $('opt-hide').addEventListener('click', () => { menuEl.hidden = true; window.bri
 $('opt-quit').addEventListener('click', () => window.bridge.setOption('quit', true));
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!changelogEl.hidden) closeChangelog(true); else menuEl.hidden = true;
+  if (!t3Wiz.hidden) closeWiz(true);
+  else if (!changelogEl.hidden) closeChangelog(true);
+  else menuEl.hidden = true;
 });
 canvas.addEventListener('mousedown', (e) => {
   const p = toInternal(e);

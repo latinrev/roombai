@@ -12,6 +12,7 @@ RoomBai polls T3 Code servers on other machines. Each top-level remote thread be
 - `t3-discover` finds T3 servers on the user's own online Tailscale peers and the tagged peers of their tailnet. It runs at startup, every 5 minutes, after Connect opens the page, and before a Paste of a bare code or a localhost link. Each compatible one not in the config gets a `Connect <label>...` tray line. A discovery problem shows as `Finding T3 servers: <reason>`, except `Tailscale not found` while the config has no entries. A bare code or localhost link is guessed only onto the user's own machines, never a tagged one.
 - `t3-pair` turns a pasted pairing link into an `orchestration:read` entry with `tokenEnc` and `expiresAt`.
 - `t3-expiry` adds `(key expires in N d)` to the status line, and a `Reconnect <label>...` line from 3 days before expiry or on a 401.
+- `t3-menu` is the collapsible **T3 machines** section at the top of `#menu` (`#t3-toggle`, `#t3-body`, `.t3-row`) and the three-step card `#t3wiz`. Its buttons carry `data-t3`: `connect:<url>`, `add`, `pick:<url>`, `other`, `open-t3`, `next`, `back`, `paste`, `done` and `close`. `appCfg.t3` holds the state from `t3MenuState`, and the toggle is saved as `t3Expanded` in `window.json`.
 
 ## How to get to it (user POV)
 
@@ -27,6 +28,12 @@ RoomBai polls T3 Code servers on other machines. Each top-level remote thread be
 - Over the inspector, set a conditional breakpoint on the first line inside `trayMenu` in `src/main.js`. The condition runs in that frame, so `(console.log('TRAY ' + JSON.stringify(t3Lines().map((l) => l.label))), false)` prints the T3 lines to `app.log` without pausing. Trigger a rebuild from the renderer with `$CDP eval "bridge.setOption('muted', false)"`. The breakpoint lasts only while the inspector session stays open.
 - To pair, make a 5-minute link on the T3 host with `t3 auth pairing create --ttl 5m --base-url <url> --json`, and write its `pairUrl` to a 0600 file without printing it. Use a one-shot condition that calls `clipboard.writeText(fs.readFileSync(<file>, 'utf8'))`, then `pastePairingLink()`, then `clipboard.clear()`. The tray then reads `<label>: ok (key expires in 30 d)` and the config holds `url`, `expiresAt` and `tokenEnc`.
 - Revoke the new session on the host with `t3 auth session revoke <id>`. Within one poll the tray reads `unauthorized` with a `Reconnect <label>...` line.
+
+### Menu and card
+
+- Launch as for pairing, open the menu with the roof `tap`, and `click` `[data-t3="connect:<url>"]`.
+- To see where **Open T3** goes without a browser, replace `require('electron').shell.openExternal` over the main inspector (`Runtime.evaluate` with `includeCommandLineAPI`) with a function that records its URL. The menu's Connect sends no notification.
+- Put the pairing link on the clipboard over the same inspector with `clipboard.writeText(fs.readFileSync(<file>, 'utf8').trim())`, click `next`, then `paste`, and clear the clipboard afterwards.
 
 ### Polling
 

@@ -5,7 +5,7 @@ const { Watcher, PORT } = require('./watcher');
 const github = require('./github');
 const { createT3Servers, describeServer } = require('./t3remote');
 const { discoverT3 } = require('./t3discover');
-const { guessCandidates, pairT3, unconnected } = require('./t3pair');
+const { guessCandidates, pairT3, t3MenuState, unconnected } = require('./t3pair');
 
 const SCALE_DEFAULT = 3;
 const ROOM_W = 360; // internal pixel-art resolution
@@ -21,11 +21,11 @@ let t3servers;
 let discovery = { servers: [], reason: '' };
 let discovering = null;
 let pairing = false;
-let pairMessage = '';
+let pairResult = { message: '' };
 let pairMessageTimer;
 const DISCOVER_MS = 5 * 60e3;
 // room settings, changeable from the in-game menu or the tray, remembered between runs
-const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false };
+const settings = { scale: SCALE_DEFAULT, muted: false, snoozing: false, onTop: true, collapsed: false, shareCount: false, t3Expanded: null };
 const COLLAPSED_H = 12;
 // See-through space above the room so agent cards can open above their roomba
 // instead of covering the room. Clicks there pass through to the desktop.
@@ -42,8 +42,10 @@ function loadPos() {
   } catch {}
 }
 function savePos() { fs.writeFile(posFile(), JSON.stringify({ pos, settings }), () => {}); }
-function config() { return { version: app.getVersion(), update: updates?.status(), usage: usage?.snapshot(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, snoozing: settings.snoozing, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale }; }
+function config() { return { version: app.getVersion(), update: updates?.status(), usage: usage?.snapshot(), communityAvailable: community?.available() || false, shareCount: settings.shareCount, scale: cssScale(), head: HEAD, muted: settings.muted, snoozing: settings.snoozing, onTop: settings.onTop, collapsed: settings.collapsed, anchor: pos.anchor, size: settings.scale, t3: t3State() }; }
 function sendConfig() { if (win && !win.isDestroyed()) win.webContents.send('config', config()); }
+// The tray and the in-room menu both list the T3 servers, so they refresh together.
+function refreshMenus() { if (tray) tray.setContextMenu(trayMenu()); sendConfig(); }
 const lastStatus = new Map();
 
 // Dev runs (screenshots, scripted tests) keep their state away from your real rooms and todos.
@@ -185,7 +187,7 @@ function t3Lines() {
   for (const s of statuses) {
     const { text, reconnect } = describeServer(s);
     lines.push({ label: text, enabled: false });
-    if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s.url, s.label) });
+    if (reconnect) lines.push({ label: `Reconnect ${s.label}…`, click: () => openPairPage(s) });
   }
   for (const p of t3servers.problems()) lines.push({ label: `${p.label}: ${p.reason}`, enabled: false });
   if (discovery.reason && (!discovery.missing || statuses.length || t3servers.problems().length)) {
@@ -196,32 +198,47 @@ function t3Lines() {
       : { label: `${d.label}: runs a T3 version Roombai cannot read`, enabled: false });
   }
   lines.push({ label: 'Paste T3 pairing link', click: pastePairingLink });
-  if (pairMessage) lines.push({ label: pairMessage, enabled: false });
+  if (pairResult.message) lines.push({ label: pairResult.message, enabled: false });
   return lines;
 }
 
-function openPairPage(url, label) {
+function t3State() {
+  return t3MenuState({ available: Boolean(t3servers), statuses: t3servers?.status() || [], discovery, pairing: { busy: pairing, ...pairResult }, expanded: settings.t3Expanded });
+}
+
+// The in-room menu shows these steps itself, so only the tray's Connect sends a notification.
+function openPairPage({ url, label }, notify = true) {
   shell.openExternal(new URL('/settings/connections', url + '/').href);
+  if (!notify) return;
   const body = `In T3 (the app where ${label} is connected), open Settings, Connections, Create pairing link, copy it, then choose Paste T3 pairing link in Roombai.`;
   if (Notification.isSupported()) new Notification({ title: `Connect ${label}`, body, silent: true }).show();
   else void dialog.showMessageBox({ type: 'info', title: `Connect ${label}`, message: body });
 }
 
-function connectServer(d) {
-  openPairPage(d.url, d.label);
+function connectServer(d, notify = true) {
+  openPairPage(d, notify);
   void discover();
 }
 
-function showPairMessage(text) {
-  pairMessage = text;
+function connectFromMenu(key) {
+  const machine = t3State().machines.find((m) => m.key === key);
+  if (!machine?.action) return false;
+  connectServer(machine, false);
+  return true;
+}
+
+function showPairMessage(message, ok) {
+  pairResult = { message, ok };
   clearTimeout(pairMessageTimer);
-  pairMessageTimer = setTimeout(() => { pairMessage = ''; if (tray) tray.setContextMenu(trayMenu()); }, 60e3);
-  if (tray) tray.setContextMenu(trayMenu());
+  pairMessageTimer = setTimeout(() => { pairResult = { message: '' }; refreshMenus(); }, 60e3);
+  refreshMenus();
 }
 
 async function pastePairingLink() {
-  if (pairing) return;
+  if (pairing) return null;
   pairing = true;
+  let message;
+  let ok;
   try {
     const text = clipboard.readText();
     showPairMessage('Pairing…');
@@ -230,20 +247,22 @@ async function pastePairingLink() {
       return guessCandidates(discovery, t3servers.status());
     };
     const result = await pairT3({ text, file: t3File(), fs, safeStorage, findCandidates, statuses: t3servers.status() });
-    let message = result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`;
-    if (!result.problem) {
-      try { t3servers.reload(); } catch { message = `Saved ${result.label}, but it could not be loaded; restart Roombai`; }
+    message = result.problem ? `Pairing failed: ${result.problem}` : `Connected ${result.label}`;
+    ok = !result.problem;
+    if (ok) {
+      try { t3servers.reload(); } catch { message = `Saved ${result.label}, but it could not be loaded; restart Roombai`; ok = false; }
     }
-    showPairMessage(message);
   } finally {
     pairing = false;
   }
+  showPairMessage(message, ok);
+  return { message, ok };
 }
 
 function discover() {
   discovering ||= discoverT3().then((found) => { discovery = found; }).finally(() => {
     discovering = null;
-    if (tray) tray.setContextMenu(trayMenu());
+    refreshMenus();
   });
   return discovering;
 }
@@ -272,6 +291,7 @@ function setOption(key, value) {
     community?.setEnabled(settings.shareCount);
     savePos(); sendConfig(); return;
   }
+  if (key === 't3-expanded') { settings.t3Expanded = Boolean(value); savePos(); sendConfig(); return; }
   if (key === 'anchor') {
     if (value === 'free' && pos.x === null) { const b = win.getBounds(); pos.x = b.x; pos.y = b.y + HEAD - sizeOn(roomDisplay()).offY; }
     pos.anchor = value;
@@ -334,7 +354,7 @@ app.whenReady().then(() => {
   community.start();
   if (t3File()) {
     t3servers = createT3Servers({ file: t3File(), fs, safeStorage, watcher,
-      onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); } });
+      onStatus: refreshMenus });
     t3servers.reload();
     fs.watchFile(t3File(), { interval: 2000 }, (curr, prev) => {
       if (curr.mtimeMs !== prev.mtimeMs && curr.mtimeMs !== t3servers.ownWrite()) t3servers.reload();
@@ -371,6 +391,8 @@ app.whenReady().then(() => {
   ipcMain.handle('jump', (_e, agent) => jumpTo(agent));
   ipcMain.handle('github', (_e, cwds, force) => github.lookup((cwds || []).filter((c) => typeof c === 'string'), Boolean(force)));
   ipcMain.on('open-url', (_e, url) => { if (/^https:\/\/github\.com\//.test(String(url))) shell.openExternal(url); });
+  ipcMain.handle('t3-connect', (_e, key) => connectFromMenu(String(key)));
+  ipcMain.handle('t3-paste', () => pastePairingLink());
 
   // your own todos live in a small JSON file next to the app settings
   const todoFile = path.join(app.getPath('userData'), 'todos.json');

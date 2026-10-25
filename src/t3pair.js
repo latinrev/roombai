@@ -8,6 +8,8 @@ const OS_NAME = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 const PAIRING_CODE = /^[2-9A-HJ-NP-Z]{12}$/;
 const NOT_A_LINK = { problem: 'the clipboard does not hold a T3 pairing link' };
 const NOT_SEALED = { problem: 'the key could not be encrypted, so nothing was saved; pair again with a new link' };
+const DAY = 864e5;
+const MENU_STATE = { ok: 'connected', unauthorized: 'unauthorized', unreachable: 'unreachable', incompatible: 'incompatible', connecting: 'connecting' };
 
 // Every link T3 builds is a /pair page with the credential in the fragment (older ones in ?token=).
 // A hosted app.t3.codes link names the server in ?host=; a direct link is the server itself.
@@ -133,4 +135,26 @@ const guessCandidates = (discovery, statuses) => ({
   missing: !!discovery.missing,
 });
 
-module.exports = { guessCandidates, pairT3, parsePairingLink, unconnected };
+// What the in-room menu shows: configured servers first, then discovered ones not yet connected. No tokens.
+// The section opens by itself while a machine needs Connect or Reconnect, until the user toggles it.
+function t3MenuState({ available, statuses, discovery, pairing, expanded, now = Date.now() }) {
+  const configured = statuses.map((s) => {
+    const machine = { key: s.url, label: s.label, url: s.url, state: MENU_STATE[s.state] || 'connecting', action: describeServer(s, now).reconnect ? 'reconnect' : null };
+    if (s.expiresAt) machine.expiresInDays = Math.max(0, Math.round((s.expiresAt - now) / DAY));
+    return machine;
+  });
+  const found = unconnected(discovery.servers, statuses)
+    .map((d) => ({ key: d.url, label: d.label, url: d.url, state: d.compatible ? 'found' : 'incompatible', action: d.compatible ? 'connect' : null }));
+  const machines = [...configured, ...found];
+  const toSetUp = machines.filter((m) => m.action).length;
+  return {
+    available,
+    machines,
+    toSetUp,
+    open: typeof expanded === 'boolean' ? expanded : toSetUp > 0,
+    discovery: { missing: Boolean(discovery.missing), reason: discovery.reason || '' },
+    pairing: { busy: Boolean(pairing.busy), message: pairing.message || '', ...(pairing.ok !== undefined && { ok: pairing.ok }) },
+  };
+}
+
+module.exports = { guessCandidates, pairT3, parsePairingLink, t3MenuState, unconnected };
