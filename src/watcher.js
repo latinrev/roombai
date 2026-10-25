@@ -56,6 +56,8 @@ class Watcher extends EventEmitter {
   constructor({ demo = false } = {}) {
     super();
     this.agents = new Map();
+    // Remote agents that left the room, so an ack, hide or turn count outlives an outage or a reload.
+    this.departed = new Map(); // id -> agent, with departedAt
     this.files = new Map(); // path -> { offset, rest, agentId, kind }
     this.demo = demo;
     this.lastSnapshot = '';
@@ -321,11 +323,19 @@ class Watcher extends EventEmitter {
   }
 
   // Replace one remote server's agents with its latest poll; threads it no longer lists leave.
-  setRemoteAgents(source, list) {
+  setRemoteAgents(source, list, now = Date.now()) {
     const ids = new Set(list.map((a) => a.id));
-    for (const [id, a] of this.agents) if (a.remote === source && !ids.has(id)) this.agents.delete(id);
+    for (const [id, a] of this.agents) {
+      if (a.remote === source && !ids.has(id)) { this.agents.delete(id); this.departed.set(id, Object.assign(a, { departedAt: now })); }
+    }
+    for (const [id, a] of this.departed) if (ids.has(id) || now - a.departedAt > RECENT_FILE_MS) this.departed.delete(id);
     for (const a of list) this.agents.set(a.id, Object.assign(a, { remote: source }));
     this.publish();
+  }
+
+  // The last record of a remote agent, in the room or departed.
+  recall(id) {
+    return this.agents.get(id) || this.departed.get(id);
   }
 
   // ---------- HTTP: generic events + Claude Code hooks ----------

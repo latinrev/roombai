@@ -50,8 +50,8 @@ function providerOf(thread) {
   return 'custom';
 }
 
-// server: { environmentId, label }. prev: a Map-like of agents from earlier polls (id -> agent).
-function agentsFromShell(shell, server, now, prev = new Map()) {
+// server: { environmentId, label }. recall(id): that agent's record from earlier polls, if any.
+function agentsFromShell(shell, server, now, recall = () => undefined) {
   const projects = new Map((shell?.projects || []).map((p) => [p.id, p.title || '']));
   const out = [];
   for (const t of shell?.threads || []) {
@@ -61,7 +61,7 @@ function agentsFromShell(shell, server, now, prev = new Map()) {
     if (status !== 'working' && status !== 'waiting' && now - updatedAt > RECENT_FILE_MS) continue;
 
     const id = `t3:${server.environmentId}:${t.id}`;
-    const before = prev.get(id);
+    const before = recall(id);
     const runId = t.latestRunId || '';
     // Idle compaction starts a silent run: it must not undo an ack or count as a turn.
     const silent = t.latestRunSilent === true;
@@ -105,7 +105,7 @@ class IncompatibleError extends Error {}
 
 // servers: [{ url, token }]. onAgents(url, agents) after each good poll; onStatus() when a status changes.
 function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now, onAgents = () => {},
-  onStatus = () => {}, prev = new Map() } = {}) {
+  onStatus = () => {}, recall } = {}) {
   const entries = servers.map((s) => ({
     url: String(s.url).replace(/\/+$/, ''), token: s.token || '', env: null, timer: null, busy: null,
     lastOkAt: now(), cleared: false,
@@ -139,7 +139,7 @@ function createT3Remote({ servers = [], fetch = globalThis.fetch, now = Date.now
     const shell = await getJson(e, '/api/orchestration/shell', {
       Authorization: `Bearer ${e.token}`, 'x-t3-orchestration-protocol': String(PROTOCOL), 'Accept-Encoding': 'gzip',
     });
-    return agentsFromShell(shell, e.env, now(), prev);
+    return agentsFromShell(shell, e.env, now(), recall);
   }
 
   async function poll(e) {

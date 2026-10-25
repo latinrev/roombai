@@ -190,7 +190,7 @@ function startT3Remote() {
   const urls = new Set(servers.map((s) => s.url.replace(/\/+$/, '')));
   for (const s of old?.status() || []) if (!urls.has(s.url)) watcher.setRemoteAgents(s.url, []);
   t3remote = createT3Remote({
-    servers, prev: watcher.agents,
+    servers, recall: (id) => watcher.recall(id),
     onAgents: (source, list) => watcher.setRemoteAgents(source, list),
     onStatus: () => { if (tray) tray.setContextMenu(trayMenu()); },
   });

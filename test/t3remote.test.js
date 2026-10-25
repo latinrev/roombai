@@ -64,8 +64,8 @@ async function t3Server(t, { shell = fixture, protocol = 2, shellStatus = 200 } 
 
 function connect(t, server, { token = TOKEN, now } = {}) {
   const watcher = new Watcher();
-  const remote = createT3Remote({ servers: [{ url: server.url, token }], prev: watcher.agents, now,
-    onAgents: (source, list) => watcher.setRemoteAgents(source, list) });
+  const remote = createT3Remote({ servers: [{ url: server.url, token }], recall: (id) => watcher.recall(id), now,
+    onAgents: (source, list) => watcher.setRemoteAgents(source, list, now?.()) });
   t.after(() => remote.stop());
   const room = () => watcher.snapshot().map(({ id, status, title, project, machine, provider }) => ({ id, status, title, project, machine, provider }));
   const statuses = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status]);
@@ -241,6 +241,32 @@ for (const outage of ['returns 500', 'closes']) {
     assert.deepEqual([...seen], ['working']);
   });
 }
+
+test('an ack, a hide and the turn count survive an outage that empties the room', async (t) => {
+  let clock = Date.now();
+  const finished = iso(5 * 60e3);
+  const threads = (run) => ['fresh', 'seen', 'tucked'].map((id) => thread(id, { status: run ? 'running' : 'completed', latestRunId: run || `run-${id}`, latestRunCompletedAt: finished }));
+  const server = await t3Server(t, { shell: () => ({ projects: fixture().projects, threads: threads() }) });
+  const { watcher, remote } = connect(t, server, { now: () => clock });
+  const room = () => watcher.snapshot().map((a) => [a.id.replace('t3:env-1:', ''), a.status, a.turns]);
+  await remote.refresh();
+  watcher.ack('t3:env-1:seen');
+  watcher.hide('t3:env-1:tucked');
+
+  server.shellStatus = 500;
+  clock += 31e3;
+  await remote.refresh();
+  assert.deepEqual(room(), [], 'the stale server leaves the room');
+
+  server.shellStatus = 200;
+  clock += 10e3;
+  await remote.refresh();
+  assert.deepEqual(room(), [['fresh', 'done', 1], ['seen', 'idle', 1]], 'the same run comes back acked and hidden');
+
+  server.shell = () => ({ projects: fixture().projects, threads: threads('run-2') });
+  await remote.refresh();
+  assert.deepEqual(room(), [['fresh', 'working', 2], ['seen', 'working', 2], ['tucked', 'working', 2]], 'a new run resets them');
+});
 
 // Stands in for Electron's safeStorage: "enc:" ciphertext, and a token named "boom" fails to encrypt.
 const safeStorage = {
