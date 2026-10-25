@@ -288,6 +288,7 @@ class Watcher extends EventEmitter {
         turns: a.turns,
         toolCalls: a.toolCalls,
         detail: status === 'stuck' && a.error ? a.error : a.lastMessage || a.lastPrompt,
+        ...(a.machine ? { machine: a.machine } : {}),
       });
     }
     list.sort((x, y) => x.id.localeCompare(y.id));
@@ -314,6 +315,14 @@ class Watcher extends EventEmitter {
   hide(id) {
     const a = this.agents.get(id);
     if (a) { a.hidden = true; this.publish(); }
+  }
+
+  // Replace one remote server's agents with its latest poll; threads it no longer lists leave.
+  setRemoteAgents(source, list) {
+    const ids = new Set(list.map((a) => a.id));
+    for (const [id, a] of this.agents) if (a.remote === source && !ids.has(id)) this.agents.delete(id);
+    for (const a of list) this.agents.set(a.id, Object.assign(a, { remote: source }));
+    this.publish();
   }
 
   // ---------- HTTP: generic events + Claude Code hooks ----------
@@ -434,4 +443,4 @@ function listRecent(dir, now) {
   return out;
 }
 
-module.exports = { Watcher, PORT };
+module.exports = { Watcher, PORT, newAgent, firstLine, RECENT_FILE_MS };
