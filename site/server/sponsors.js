@@ -167,7 +167,7 @@ export async function checkout(db, stripe, body, origin, now = nowSeconds()) {
     if (session.status !== 'open') { await syncOrder(db, stripe, order, now, origin); fail(409, 'This checkout has finished. Check your placement status.'); }
     return { url: session.url, order: order.id };
   }
-  if (now - order.created_at >= 23 * 3600) fail(503, 'This reservation needs operator review. Contact @joeldev_ before paying again.');
+  if (now - order.created_at >= 23 * 3600) fail(503, 'This reservation needs operator review. Contact @joelcastillo before paying again.');
   try {
     const session = await stripe.checkout.sessions.create(sessionParams(order, origin), { idempotencyKey: `sponsor:${order.id}` });
     await db.prepare("UPDATE sponsor_orders SET session_id = ?, checkout_url = ?, status = CASE WHEN status = 'creating' THEN 'open' ELSE status END WHERE id = ?")

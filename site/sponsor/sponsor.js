@@ -148,7 +148,7 @@ try {
       owner = { id, token };
       await refreshOrder();
     } else {
-      $('manage-status').textContent = 'Open this page in the browser you used for checkout, or use your saved private link. Lost it? Contact support@nottifai.com or @joeldev_ on Twitter using the links below. Recovery is handled manually and may take a few days.';
+      $('manage-status').textContent = 'Open this page in the browser you used for checkout, or use your saved private link. Lost it? Contact support@nottifai.com or @joelcastillo on Twitter using the links below. Recovery is handled manually and may take a few days.';
       $('copy-link').hidden = true; $('refresh-status').hidden = true;
     }
   }

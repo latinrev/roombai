@@ -71,7 +71,7 @@ Expired placements are omitted by timestamp on every catalogue/logo request. No 
 
 ## Sponsor management and moderation
 
-Sponsors return to a status page after Checkout. Their browser retains a random management token; the server stores only its SHA-256 hash. The **Copy private link** control includes the token in a URL fragment, which is not sent in HTTP requests. There is no analytics script on this page, and referrers are suppressed. Losing both browser storage and the saved link requires operator help through @joeldev_. Email recovery is not implemented.
+Sponsors return to a status page after Checkout. Their browser retains a random management token; the server stores only its SHA-256 hash. The **Copy private link** control includes the token in a URL fragment, which is not sent in HTTP requests. There is no analytics script on this page, and referrers are suppressed. Losing both browser storage and the saved link requires operator help through @joelcastillo. Email recovery is not implemented.
 
 To enable the moderation endpoint, generate a cryptographically random 32-byte hex token and save it as the Pages encrypted secret `SPONSOR_ADMIN_TOKEN`. Send `POST /api/sponsors/admin/remove` with `Authorization: Bearer <token>` and JSON `{"slot":"left-1-1"}`. This immediately hides existing orders for that slot, including pending ones; it does not issue a refund. Use Stripe Dashboard to handle refunds and disputes. Until the admin secret is provisioned, the endpoint rejects every request. The owner can also suspend an order directly through the Cloudflare D1 console.
 
