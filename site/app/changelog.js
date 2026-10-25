@@ -1,6 +1,13 @@
 // Bundled notes keep the menu's changelog available offline in the app and demo.
 const RELEASE_NOTES = [
   {
+    version: '0.1.13',
+    changes: [
+      'Connect T3 machines from a new T3 machines section in the menu.',
+      'A three-step card shows exactly what to do in T3, then pastes the pairing link for you.',
+    ],
+  },
+  {
     version: '0.1.12',
     changes: [
       'See T3 Code threads from your other machines as roombas, labelled with the machine.',
