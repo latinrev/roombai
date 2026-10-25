@@ -290,6 +290,8 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
     { url: 'http://100.101.1.2:3773', token: 'tailnet-token' },
     { url: 'http://localhost:3773', token: 'boom' },
     { url: 'not a url', token: 'x' },
+    { url: ['https://box.ts.net'], token: 'x' },
+    { url: 'ftp://files.ts.net', token: 'x' },
     { url: 'http://build-box.example.com', token: 'x' },
     { url: 'http://100.12.1.2', token: 'x' },
     { url: 'https://numbers.ts.net', token: 42 },
@@ -305,13 +307,15 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
     { url: 'http://localhost:3773', token: 'boom' },
   ]);
   assert.deepEqual(loaded.problems, [
-    { label: 'not a url', reason: 'bad URL' },
+    { label: 'entry 5', reason: 'bad URL' },
+    { label: 'entry 6', reason: 'url must be a string' },
+    { label: 'entry 7', reason: 'bad URL' },
     { label: 'build-box', reason: 'use https; http is only for localhost and Tailscale 100.x addresses' },
     { label: '100.12.1.2', reason: 'use https; http is only for localhost and Tailscale 100.x addresses' },
     { label: 'numbers', reason: 'token must be a string' },
     { label: 'blank', reason: 'token is empty' },
     { label: 'garbled', reason: 'token unreadable; paste it again' },
-    { label: 'entry 11', reason: 'expected an object with url and token' },
+    { label: 'entry 13', reason: 'expected an object with url and token' },
   ]);
 
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -321,7 +325,7 @@ test('t3-servers.json: good entries load and get encrypted, bad ones become prob
     { url: 'http://100.101.1.2:3773', tokenEnc: Buffer.from('enc:tailnet-token').toString('base64') },
     { url: 'http://localhost:3773', token: 'boom' },
   ], 'tokens are encrypted in place; one that fails to encrypt stays as it was');
-  assert.equal(saved.length, 11, 'rejected entries stay in the file for the user to fix');
+  assert.equal(saved.length, 13, 'rejected entries stay in the file for the user to fix');
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   assert.equal(loaded.mtimeMs, fs.statSync(file).mtimeMs);
   assert.deepEqual(fs.readdirSync(path.dirname(file)), ['t3-servers.json'], 'no temp file left behind');

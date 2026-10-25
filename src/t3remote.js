@@ -208,9 +208,14 @@ function loadT3Servers({ file, fs, safeStorage }) {
   const problems = [];
   let changed = false;
   for (const [i, entry] of list.entries()) {
-    const reject = (reason) => problems.push({ label: typeof entry?.url === 'string' ? hostOf(entry.url) : `entry ${i + 1}`, reason });
+    // A bad URL may be a pasted token, so it is never shown.
+    let label = `entry ${i + 1}`;
+    const reject = (reason) => problems.push({ label, reason });
     if (!entry || typeof entry !== 'object') { reject('expected an object with url and token'); continue; }
+    if (typeof entry.url !== 'string') { reject('url must be a string'); continue; }
     const badUrl = urlProblem(entry.url);
+    if (badUrl === 'bad URL') { reject(badUrl); continue; }
+    label = hostOf(entry.url);
     if (badUrl) { reject(badUrl); continue; }
     if (entry.token !== undefined && typeof entry.token !== 'string') { reject('token must be a string'); continue; }
     let token = (entry.token || '').trim();
